@@ -1,0 +1,79 @@
+{
+  "services": [
+    {
+      "name": "frontend-service",
+      "prefix": "frontend",
+      "folder": "frontend-service",
+      "port": 80,
+      "dockerImage": "my-app/frontend-service:latest",
+      "k8sPath": "k8s/frontend-service"
+    },
+    {
+      "name": "restaurants-service",
+      "prefix": "restaurants",
+      "folder": "restaurants-service",
+      "port": 3001,
+      "dockerImage": "my-app/restaurants-service:latest",
+      "k8sPath": "k8s/restaurants-service"
+    },
+    {
+      "name": "orders-service",
+      "prefix": "orders",
+      "folder": "orders-service",
+      "port": 3002,
+      "dockerImage": "my-app/orders-service:latest",
+      "k8sPath": "k8s/orders-service"
+    },
+    {
+      "name": "users-service",
+      "prefix": "users",
+      "folder": "users-service",
+      "port": 3003,
+      "dockerImage": "my-app/users-service:latest",
+      "k8sPath": "k8s/users-service"
+    },
+    {
+      "name": "delivery-service",
+      "prefix": "delivery",
+      "folder": "delivery-service",
+      "port": 3004,
+      "dockerImage": "my-app/delivery-service:latest",
+      "k8sPath": "k8s/delivery-service"
+    },
+    {
+      "name": "alert-agent-data-collect-service",
+      "prefix": "alert-agent",
+      "folder": "alert-agent-data-collect-service",
+      "port": 3008,
+      "dockerImage": "my-app/alert-agent-data-collect-service:latest",
+      "k8sPath": ""
+    },
+    {
+      "name": "alert-dashboard-frontend",
+      "prefix": "alert-dashboard",
+      "folder": "alert-dashboard-frontend",
+      "port": 80,
+      "dockerImage": "my-app/alert-dashboard-frontend:latest",
+      "k8sPath": ""
+    },
+    {
+      "name": "log-aggregation-service",
+      "prefix": "log-aggregation",
+      "folder": "log-aggregation-service",
+      "port": 3005,
+      "dockerImage": "my-app/log-aggregation-service:latest",
+      "k8sPath": ""
+    },
+    {
+      "name": "logs-dashboard-frontend",
+      "prefix": "logs-dashboard",
+      "folder": "logs-dashboard-frontend",
+      "port": 80,
+      "dockerImage": "my-app/logs-dashboard-frontend:latest",
+      "k8sPath": ""
+    }
+  ],
+  "nginx": {
+    "k8sPath": "k8s/nginx"
+  }
+}
