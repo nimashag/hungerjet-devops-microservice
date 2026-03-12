@@ -1,5 +1,13 @@
 # kubernetes-docker-nodejs-microservices-demo
+
 Microservices Demo Project (using Node.js, Docker, Kubernetes etc.)
+
+![CI/CD Pipeline](https://github.com/nimashag/hungerjet-devops-microservice/actions/workflows/ci-cd.yml/badge.svg)
+
+## 📚 Quick Links
+
+- **[CI/CD Setup Guide](CI-CD-SETUP.md)** - Complete guide for GitHub Actions pipeline
+- **Repository**: [github.com/nimashag/hungerjet-devops-microservice](https://github.com/nimashag/hungerjet-devops-microservice)
 
 ---
 
@@ -118,12 +126,13 @@ chmod +x runner_docker.sh
 The API endpoints are accessible through the NGINX gateway on port `31000` for both deployment methods.
 
 **Restaurants API:**
+
 ```shell
 curl -X POST http://localhost:31000/api/restaurants/ \
   -H "Content-Type: application/json" \
   -d '{"name": "Pizza Palace"}'
 
-curl http://localhost:31000/api/restaurants/ 
+curl http://localhost:31000/api/restaurants/
 
 # View logs (Kubernetes)
 ./runner_k8s.sh logs restaurants
@@ -133,6 +142,7 @@ curl http://localhost:31000/api/restaurants/
 ```
 
 **Orders API:**
+
 ```shell
 curl -X POST http://localhost:31000/api/orders/ \
 -H "Content-Type: application/json" \
@@ -143,7 +153,7 @@ curl -X POST http://localhost:31000/api/orders/ \
   "customerId": "john.doe"
 }'
 
-curl http://localhost:31000/api/orders/ 
+curl http://localhost:31000/api/orders/
 
 # View logs (Kubernetes)
 ./runner_k8s.sh logs order
@@ -177,6 +187,7 @@ Create the new service (`{prefix}-service`) with `Dockerfile`. Pick a port in `3
 1. Inside `k8s` folder, create k8s resource files (e.g. `{prefix}-deployment.yaml`, `{prefix}-service.yaml`).
 
 2. Add a record to `services.config.json`.
+
 ```json
 {
   "name": "{prefix}-service",
@@ -189,14 +200,16 @@ Create the new service (`{prefix}-service`) with `Dockerfile`. Pick a port in `3
 ```
 
 3. Add a record to NGINX config file (`k8s/nginx/nginx-config.yaml`).
+
 ```yaml
 # Proxy {prefix} API routes to {prefix} backend service
 location /api/{prefix} {
-  proxy_pass http://{prefix}-service;
+proxy_pass http://{prefix}-service;
 }
 ```
 
 4. Restart cluster.
+
 ```shell
 ./runner_k8s.sh up
 ```
@@ -206,6 +219,7 @@ location /api/{prefix} {
 1. Add a record to `services.config.json` (same as above).
 
 2. Add the service to `docker/docker-compose.yml`:
+
 ```yaml
   {prefix}-service:
     image: my-app/{prefix}-service:latest
@@ -223,6 +237,7 @@ location /api/{prefix} {
 ```
 
 3. Add routing to `docker/nginx.conf`:
+
 ```nginx
   location /api/{prefix} {
     proxy_pass http://{prefix}-service:3005;
@@ -230,6 +245,7 @@ location /api/{prefix} {
 ```
 
 4. Restart services.
+
 ```shell
 ./runner_docker.sh up
 ```
@@ -295,4 +311,3 @@ docker-compose -f docker/docker-compose.yml down -v
 # Rebuild specific service
 docker-compose -f docker/docker-compose.yml build <service-name>
 ```
-

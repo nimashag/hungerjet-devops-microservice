@@ -24,7 +24,7 @@ spec:
             - name: ORDERS_SERVICE_URL
               value: "http://orders-service/api/orders"
             - name: USERS_SERVICE_URL
-              value: "http://users-service/api/restaurants"
+              value: "http://users-service/api/auth"
             - name: DELIVERY_SERVICE_URL
               value: "http://delivery-service/api/delivery"
           volumeMounts:
