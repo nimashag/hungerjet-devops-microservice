@@ -17,9 +17,13 @@ import { httpClient } from "../utils/httpClient";
 import { Delivery } from "../models/delivery.model";
 import { sendSMS } from "../services/sms.service";
 import { logError, logInfo, logWarn } from "../utils/logger";
+import dotenv from "dotenv";
 
-const ORDER_SERVICE_BASE_URL = "http://localhost:3002/api/orders";
-const USER_SERVICE_BASE_URL = "http://localhost:3003/api/auth";
+dotenv.config();
+
+const RESTAURANTS_SERVICE_URL = process.env.RESTAURANTS_SERVICE_URL || "http://restaurants-service:3001/api/restaurants";
+const ORDER_SERVICE_BASE_URL = process.env.ORDERS_SERVICE_URL || "http://orders-service:3002/api/orders";
+const USER_SERVICE_BASE_URL = process.env.USERS_SERVICE_URL || "http://users-service:3003/api/auth";
 
 export const assignDriverAutomatically = async (
   req: Request,
@@ -34,15 +38,15 @@ export const assignDriverAutomatically = async (
   });
   try {
     const restaurantRes = await httpClient.get(
-      `http://localhost:3001/api/restaurants/${restaurantId}`
-    ); //3001
+      `${RESTAURANTS_SERVICE_URL}/${restaurantId}`
+    );
     const restaurant = restaurantRes.data;
 
     if (!restaurant.available)
       return res.status(400).json({ message: "Restaurant not available" });
 
     const orderRes = await httpClient.get(
-      `http://localhost:3002/api/orders/${orderId}`
+      `${ORDER_SERVICE_BASE_URL}/${orderId}`
     );
     const order = orderRes.data;
 

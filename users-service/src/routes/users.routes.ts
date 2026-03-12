@@ -1,4 +1,4 @@
-import express from 'express';
+import express from "express";
 import {
   registerUser,
   loginUser,
@@ -6,26 +6,33 @@ import {
   getAllUsers,
   updateUserById,
   deleteUserById,
-  getUserById
-} from '../controllers/users.authcontroller';
-import { authenticate } from '../middleware/authMiddleware';
-import { isAppAdmin } from '../middleware/role.middleware';
+  getUserById,
+} from "../controllers/users.authcontroller";
+import { authenticate } from "../middleware/authMiddleware";
+import { isAppAdmin } from "../middleware/role.middleware";
 
 const router = express.Router();
 
-// Public routes
-router.post('/register', registerUser);
-router.post('/login', loginUser);
+// Health check endpoint
+router.get("/health", (req, res) => {
+  res.status(200).json({
+    status: "healthy",
+    service: "users-service",
+    timestamp: new Date().toISOString(),
+  });
+});
 
+// Public routes
+router.post("/register", registerUser);
+router.post("/login", loginUser);
 
 // Protected route
-router.get('/me', authenticate, getMyProfile);
+router.get("/me", authenticate, getMyProfile);
 
 // Admin-only routes (requires appAdmin role)
-router.get('/all', authenticate, isAppAdmin, getAllUsers);
-router.put('/:id', authenticate, isAppAdmin, updateUserById);
-router.get('/:id', getUserById);
-router.delete('/:id', authenticate, isAppAdmin, deleteUserById);
-
+router.get("/all", authenticate, isAppAdmin, getAllUsers);
+router.put("/:id", authenticate, isAppAdmin, updateUserById);
+router.get("/:id", getUserById);
+router.delete("/:id", authenticate, isAppAdmin, deleteUserById);
 
 export default router;
