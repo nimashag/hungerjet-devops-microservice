@@ -16,6 +16,7 @@ jobs:
     runs-on: ubuntu-latest
     
     strategy:
+      fail-fast: false
       matrix:
         service: 
           - users-service
@@ -31,8 +32,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: ${{ matrix.service }}/package-lock.json
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: ${{ matrix.service }}/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles(format('{0}/package-lock.json', matrix.service)) }}
+          restore-keys: |
+            ${{ runner.os }}-node-
       
       - name: Install dependencies
         working-directory: ./${{ matrix.service }}
@@ -72,8 +79,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm'
-          cache-dependency-path: frontend-service/package-lock.json
+      
+      - name: Cache dependencies
+        uses: actions/cache@v3
+        with:
+          path: frontend-service/node_modules
+          key: ${{ runner.os }}-node-${{ hashFiles('frontend-service/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-node-
       
       - name: Install dependencies
         working-directory: ./frontend-service
