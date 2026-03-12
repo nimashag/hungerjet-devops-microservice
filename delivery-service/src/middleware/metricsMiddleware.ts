@@ -1,6 +1,4 @@
 import { NextFunction, Request, Response } from 'express';
-import * as fs from 'fs';
-import * as path from 'path';
 import * as os from 'os';
 import { randomUUID } from 'crypto';
 import { AsyncLocalStorage } from 'async_hooks';
@@ -81,17 +79,6 @@ function getMemoryMetrics(): { rss_mb: number; heap_used_mb: number } {
   };
 }
 
-// Write metrics to JSONL file
-function writeMetrics(metrics: RequestMetrics, outputDir: string): void {
-  const metricsFile = path.join(outputDir, 'metrics.jsonl');
-  const line = JSON.stringify(metrics) + '\n';
-  
-  try {
-    fs.appendFileSync(metricsFile, line, 'utf8');
-  } catch (error) {
-    console.error(`Failed to write metrics to ${metricsFile}:`, error);
-  }
-}
 
 // Extract route pattern from path (simplified - you may want to enhance this)
 function extractRoute(path: string, method: string): string {
@@ -108,11 +95,6 @@ function extractRoute(path: string, method: string): string {
 }
 
 export function createMetricsMiddleware(serviceName: string, outputDir: string = './metrics') {
-  // Ensure output directory exists
-  if (!fs.existsSync(outputDir)) {
-    fs.mkdirSync(outputDir, { recursive: true });
-  }
-
   return (req: Request, res: Response, next: NextFunction): void => {
     const startTime = Date.now();
     const requestId = req.get('X-Request-Id') || randomUUID();
@@ -162,8 +144,6 @@ export function createMetricsMiddleware(serviceName: string, outputDir: string =
         },
       };
 
-      writeMetrics(metrics, outputDir);
-      
       // Clean up
       requestMetricsMap.delete(requestId);
     });

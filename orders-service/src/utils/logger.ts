@@ -1,26 +1,8 @@
-import fs from 'fs';
-import path from 'path';
 import pino from 'pino';
 import { AsyncLocalStorage } from 'async_hooks';
 
-const logDir = path.join(__dirname, '..', '..', 'logs');
-if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-}
-
 // AsyncLocalStorage to store request context
 export const requestContext = new AsyncLocalStorage<{ requestId: string; sessionId: string }>();
-
-const streams = [
-    { stream: pino.destination(1) }, // stdout
-    {
-        stream: pino.destination({
-            dest: path.join(logDir, 'orders-service.log'),
-            append: true,
-            sync: false,
-        }),
-    },
-];
 
 const logger = pino(
     {
@@ -36,7 +18,7 @@ const logger = pino(
             },
         },
     },
-    pino.multistream(streams)
+    pino.destination(1) // stdout only
 );
 
 // Helper to get requestId from context or use default

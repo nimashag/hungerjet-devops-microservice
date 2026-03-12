@@ -1,12 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import { createLogger, format, transports } from 'winston';
 import { AsyncLocalStorage } from 'async_hooks';
-
-const logDir = path.join(__dirname, '..', '..', 'logs');
-if (!fs.existsSync(logDir)) {
-    fs.mkdirSync(logDir, { recursive: true });
-}
 
 // AsyncLocalStorage to store request context
 export const requestContext = new AsyncLocalStorage<{ requestId: string; sessionId: string }>();
@@ -49,8 +42,7 @@ const logger = createLogger({
         baseFormat
     ),
     transports: [
-        new transports.Console(),
-        new transports.File({ filename: path.join(logDir, 'restaurants-service.log') })
+        new transports.Console()
     ],
 });
 

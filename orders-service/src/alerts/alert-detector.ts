@@ -1,5 +1,3 @@
-import * as fs from 'fs';
-import * as path from 'path';
 import mongoose from 'mongoose';
 
 export interface AlertEvent {
@@ -37,7 +35,6 @@ interface ActiveAlert {
 
 export class AlertDetector {
   private serviceName: string;
-  private alertDataFile: string;
   private recentRequests: RequestMetrics[] = [];
   private activeAlerts: Map<string, ActiveAlert> = new Map();
   private periodicCheckInterval: NodeJS.Timeout | null = null;
@@ -74,14 +71,6 @@ export class AlertDetector {
   
   constructor(serviceName: string) {
     this.serviceName = serviceName;
-    
-    // Create alert data directory if it doesn't exist
-    const alertDir = path.join(process.cwd(), 'alerts');
-    if (!fs.existsSync(alertDir)) {
-      fs.mkdirSync(alertDir, { recursive: true });
-    }
-    
-    this.alertDataFile = path.join(alertDir, `${serviceName}-alert-data.ndjson`);
     
     // Start periodic check
     this.startPeriodicCheck();
@@ -482,9 +471,6 @@ export class AlertDetector {
     
     // Push to collector in real-time (webhook)
     this.sendAlertToCollector(alertEvent);
-    
-    // Also write to file (backup)
-    this.writeAlertEvent(alertEvent);
   }
   
   /**
@@ -512,9 +498,6 @@ export class AlertDetector {
     
     // Push to collector in real-time (webhook)
     this.sendAlertToCollector(alertEvent);
-    
-    // Also write to file (backup)
-    this.writeAlertEvent(alertEvent);
   }
   
   /**
@@ -595,21 +578,6 @@ export class AlertDetector {
     }
   }
 
-  /**
-   * Write alert event to file (append-only NDJSON)
-   * Uses synchronous write to prevent race conditions from concurrent alert checks
-   */
-  private writeAlertEvent(alertEvent: AlertEvent): void {
-    const line = JSON.stringify(alertEvent) + '\n';
-    
-    try {
-      // Use synchronous append to avoid interleaved writes from concurrent calls
-      fs.appendFileSync(this.alertDataFile, line);
-    } catch (err: any) {
-      console.error(`Failed to write alert event: ${err.message}`);
-    }
-  }
-  
   /**
    * Get current alert statistics (for monitoring)
    */

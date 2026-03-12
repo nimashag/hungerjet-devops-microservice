@@ -1,12 +1,5 @@
-import fs from 'fs';
-import path from 'path';
 import log4js from 'log4js';
 import { AsyncLocalStorage } from 'async_hooks';
-
-const logDir = path.join(__dirname, '..', '..', 'logs');
-if (!fs.existsSync(logDir)) {
-  fs.mkdirSync(logDir, { recursive: true });
-}
 
 // AsyncLocalStorage to store request context
 export const requestContext = new AsyncLocalStorage<{ requestId: string; sessionId: string }>();
@@ -43,19 +36,10 @@ log4js.addLayout('deliveryLine', () => (logEvent) => {
 log4js.configure({
   appenders: {
     console: { type: 'stdout', layout: { type: 'deliveryLine' } },
-    file: {
-      type: 'dateFile',
-      filename: path.join(logDir, 'delivery-service.log'),
-      pattern: 'yyyy-MM-dd',
-      keepFileExt: true,
-      daysToKeep: 14,
-      compress: false,
-      layout: { type: 'deliveryLine' },
-    },
   },
   categories: {
     default: {
-      appenders: ['console', 'file'],
+      appenders: ['console'],
       level: 'info',
     },
   },
