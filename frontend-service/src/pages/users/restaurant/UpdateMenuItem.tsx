@@ -162,8 +162,14 @@ const UpdateMenuItem = () => {
 
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label
+                htmlFor="menu-item-name"
+                className="block text-sm font-medium mb-1"
+              >
+                Name
+              </label>
               <input
+                id="menu-item-name"
                 type="text"
                 name="name"
                 value={form.name}
@@ -176,8 +182,14 @@ const UpdateMenuItem = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
+              <label
+                htmlFor="menu-item-category"
+                className="block text-sm font-medium mb-1"
+              >
+                Category
+              </label>
               <input
+                id="menu-item-category"
                 type="text"
                 name="category"
                 value={form.category}
@@ -190,10 +202,14 @@ const UpdateMenuItem = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label
+                htmlFor="menu-item-description"
+                className="block text-sm font-medium mb-1"
+              >
                 Description
               </label>
               <textarea
+                id="menu-item-description"
                 name="description"
                 value={form.description}
                 onChange={handleChange}
@@ -207,10 +223,14 @@ const UpdateMenuItem = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label
+                htmlFor="menu-item-price"
+                className="block text-sm font-medium mb-1"
+              >
                 Price ($)
               </label>
               <input
+                id="menu-item-price"
                 type="number"
                 name="price"
                 value={form.price}
@@ -223,10 +243,14 @@ const UpdateMenuItem = () => {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">
+              <label
+                htmlFor="menu-item-image"
+                className="block text-sm font-medium mb-1"
+              >
                 Upload New Image (Optional)
               </label>
               <input
+                id="menu-item-image"
                 type="file"
                 name="image"
                 accept="image/*"
