@@ -12,9 +12,7 @@ import {
   FileText,
   CreditCard,
 } from "lucide-react";
-import {
-  orderUrl
-} from "../../../api";
+import { orderUrl } from "../../../api";
 
 const Cart: React.FC = () => {
   const { cartItems, clearCart, updateItemQuantity, removeItem } = useCart();
@@ -101,23 +99,20 @@ const Cart: React.FC = () => {
     }
   };
 
-  const handleIncreaseQuantity = (index: number) => {
-    const item = cartItems[index];
-    updateItemQuantity(item.menuItemId, item.quantity + 1);
+  const handleIncreaseQuantity = (menuItemId: string, currentQty: number) => {
+    updateItemQuantity(menuItemId, currentQty + 1);
   };
 
-  const handleDecreaseQuantity = (index: number) => {
-    const item = cartItems[index];
-    if (item.quantity > 1) {
-      updateItemQuantity(item.menuItemId, item.quantity - 1);
+  const handleDecreaseQuantity = (menuItemId: string, currentQty: number) => {
+    if (currentQty > 1) {
+      updateItemQuantity(menuItemId, currentQty - 1);
     } else {
-      updateItemQuantity(item.menuItemId, 0);
+      updateItemQuantity(menuItemId, 0);
     }
   };
 
-  const handleRemoveItem = (index: number) => {
-    const item = cartItems[index];
-    removeItem(item.menuItemId);
+  const handleRemoveItem = (menuItemId: string) => {
+    removeItem(menuItemId);
   };
 
   const handleAddMoreItems = () => {
@@ -160,9 +155,9 @@ const Cart: React.FC = () => {
                   Order Items
                 </h2>
                 <ul className="flex flex-col gap-6">
-                  {cartItems.map((item, idx) => (
+                  {cartItems.map((item) => (
                     <li
-                      key={idx}
+                      key={item.menuItemId}
                       className="flex justify-between items-center bg-white p-4 rounded-lg shadow-sm"
                     >
                       <div>
@@ -177,14 +172,24 @@ const Cart: React.FC = () => {
                       <div className="flex items-center gap-4">
                         <div className="flex items-center border rounded-full shadow-sm overflow-hidden">
                           <button
-                            onClick={() => handleDecreaseQuantity(idx)}
+                            onClick={() =>
+                              handleDecreaseQuantity(
+                                item.menuItemId,
+                                item.quantity,
+                              )
+                            }
                             className="px-3 py-1 text-gray-600 hover:bg-gray-100"
                           >
                             <Minus size={16} />
                           </button>
                           <span className="px-4">{item.quantity}</span>
                           <button
-                            onClick={() => handleIncreaseQuantity(idx)}
+                            onClick={() =>
+                              handleIncreaseQuantity(
+                                item.menuItemId,
+                                item.quantity,
+                              )
+                            }
                             className="px-3 py-1 text-gray-600 hover:bg-gray-100"
                           >
                             <Plus size={16} />
@@ -196,7 +201,7 @@ const Cart: React.FC = () => {
                         </span>
 
                         <button
-                          onClick={() => handleRemoveItem(idx)}
+                          onClick={() => handleRemoveItem(item.menuItemId)}
                           className="text-red-400 hover:text-red-600"
                         >
                           <Trash2 size={20} />
