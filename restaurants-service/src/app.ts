@@ -1,11 +1,12 @@
 import express from 'express';
-import mongoose from 'mongoose';
 import cors from 'cors'; 
 import restaurantsRoutes from './routes/restaurants.routes';
-import path from 'path';
+import path from 'node:path';
 import { requestLogger } from './middlewares/requestLogger';
 
 const app = express();
+
+app.disable('x-powered-by');
 
 //Allow requests from your frontend
 app.use(cors({

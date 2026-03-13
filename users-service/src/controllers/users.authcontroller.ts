@@ -11,6 +11,13 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const sanitizeForLog = (value: unknown): string =>
   String(value).replaceAll("\r", " ").replaceAll("\n", " ");
 
+const normalizeEmail = (value: unknown): string | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized || /[\r\n]/.test(normalized)) return null;
+  return normalized;
+};
+
 const ensureValidObjectId = (id: string, res: Response): boolean => {
   if (!Types.ObjectId.isValid(id)) {
     res.status(400).json({ message: "Invalid user ID" });
@@ -23,29 +30,32 @@ const ensureValidObjectId = (id: string, res: Response): boolean => {
 export const registerUser = async (req: Request, res: Response) => {
   try {
     const { name, email, password, role, phone, address } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
     if (
       typeof name !== "string" ||
-      typeof email !== "string" ||
-      typeof password !== "string"
+      typeof password !== "string" ||
+      !normalizedEmail
     ) {
       return res.status(400).json({ message: "Invalid registration input" });
     }
 
     console.log("Register request received:", {
       name: sanitizeForLog(name),
-      email: sanitizeForLog(email),
+      email: sanitizeForLog(normalizedEmail),
       role: sanitizeForLog(role),
     });
 
-    const existingUser = await UserModel.findOne({ email });
+    const existingUser = await UserModel.findOne()
+      .where("email")
+      .equals(normalizedEmail);
     if (existingUser) {
       return res.status(409).json({ message: "User already exists" });
     }
 
     const newUser = new UserModel({
       name,
-      email,
+      email: normalizedEmail,
       password,
       role,
       phone,
@@ -65,12 +75,15 @@ export const registerUser = async (req: Request, res: Response) => {
 export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    const normalizedEmail = normalizeEmail(email);
 
-    if (typeof email !== "string" || typeof password !== "string") {
+    if (!normalizedEmail || typeof password !== "string") {
       return res.status(400).json({ message: "Invalid credentials format" });
     }
 
-    const user = await UserModel.findOne({ email });
+    const user = await UserModel.findOne()
+      .where("email")
+      .equals(normalizedEmail);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await user.comparePassword(password);

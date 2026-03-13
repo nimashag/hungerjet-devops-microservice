@@ -4,6 +4,11 @@ import { logInfo, logWarn, logError } from '../utils/logger';
 // ✅ Strict type for allowed statuses
 export type DeliveryStatus = 'Pending' | 'Assigned' | 'PickedUp' | 'Delivered' | 'Cancelled';
 
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
+
+const isSafeQueryId = (value: unknown): value is string =>
+  typeof value === 'string' && SAFE_ID_PATTERN.test(value);
+
 // ✅ Create new delivery
 export const createDelivery = async (data: {
   orderId: string;
@@ -49,8 +54,12 @@ export const createDelivery = async (data: {
 // ✅ Find delivery by order ID
 export const findDeliveryByOrderId = async (orderId: string): Promise<DeliveryDocument | null> => {
   logInfo("delivery.service.find_by_order.start", { orderId });
+  if (!isSafeQueryId(orderId)) {
+    logWarn("delivery.service.find_by_order.invalid_id", { orderId });
+    return null;
+  }
   try {
-    const delivery = await Delivery.findOne({ orderId });
+    const delivery = await Delivery.findOne().where("orderId").equals(orderId);
     if (!delivery) {
       logWarn("delivery.service.find_by_order.not_found", { orderId });
       return null;
@@ -118,8 +127,18 @@ export const updateDeliveryAcceptance = async (delivery: DeliveryDocument, actio
 // ✅ Find assigned deliveries for a driver (Pending acceptance)
 export const findAssignedDeliveriesForDriver = async (driverId: string): Promise<DeliveryDocument[]> => {
   logInfo("delivery.service.find_assigned.start", { driverId });
+  if (!isSafeQueryId(driverId)) {
+    logWarn("delivery.service.find_assigned.invalid_driver", { driverId });
+    return [];
+  }
   try {
-    const deliveries = await Delivery.find({ driverId, status: 'Assigned', acceptStatus: 'Pending' });
+    const deliveries = await Delivery.find()
+      .where("driverId")
+      .equals(driverId)
+      .where("status")
+      .equals('Assigned')
+      .where("acceptStatus")
+      .equals('Pending');
     logInfo("delivery.service.find_assigned.success", {
       driverId,
       count: deliveries.length,
@@ -134,8 +153,12 @@ export const findAssignedDeliveriesForDriver = async (driverId: string): Promise
 // ✅ Fetch all deliveries for driver (Ongoing + Completed)
 export const findAllDeliveriesForDriver = async (driverId: string): Promise<DeliveryDocument[]> => {
   logInfo("delivery.service.find_all_for_driver.start", { driverId });
+  if (!isSafeQueryId(driverId)) {
+    logWarn("delivery.service.find_all_for_driver.invalid_driver", { driverId });
+    return [];
+  }
   try {
-    const deliveries = await Delivery.find({ driverId });
+    const deliveries = await Delivery.find().where("driverId").equals(driverId);
     logInfo("delivery.service.find_all_for_driver.success", {
       driverId,
       count: deliveries.length,

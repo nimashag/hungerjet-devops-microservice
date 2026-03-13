@@ -8,7 +8,6 @@ import {
 } from "../controllers/delivery.controller";
 import { authenticate } from "../middleware/auth"; // <--- correct path
 import { authorizeRoles } from "../middleware/authorize"; // <--- correct path
-import { getTelemetry } from "../controllers/telemetry.controller";
 
 const router = Router();
 
@@ -20,8 +19,6 @@ router.get("/health", (req, res) => {
     timestamp: new Date().toISOString(),
   });
 });
-
-router.get("/telemetry", getTelemetry);
 
 // ===============================
 // DEBUG ROUTES (VIVA / DEMO ONLY)

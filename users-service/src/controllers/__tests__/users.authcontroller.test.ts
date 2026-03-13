@@ -54,12 +54,28 @@ const mockReq = (overrides: Partial<Request> = {}): Request =>
 
 beforeEach(() => jest.clearAllMocks());
 
+const validCredential = "alpha-credential-123";
+const alternateCredential = "beta-credential-456";
+const mismatchedCredential = "gamma-credential-789";
+
+const mockFindOneResult = (value: unknown) => {
+  const where = jest.fn().mockReturnThis();
+  const equals = jest.fn().mockResolvedValueOnce(value);
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where, equals });
+};
+
+const mockFindOneError = (error: Error) => {
+  const where = jest.fn().mockReturnThis();
+  const equals = jest.fn().mockRejectedValueOnce(error);
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where, equals });
+};
+
 // ─── registerUser ─────────────────────────────────────────────────────────────
 describe("registerUser", () => {
   const validBody = {
     name: "Alice",
     email: "alice@example.com",
-    password: "secret123",
+    password: validCredential,
     role: "customer",
     phone: "0771234567",
     address: "1 Main St",
@@ -90,7 +106,7 @@ describe("registerUser", () => {
   });
 
   it("returns 409 when user already exists", async () => {
-    (UserModel.findOne as jest.Mock).mockResolvedValueOnce({
+    mockFindOneResult({
       _id: "existing-id",
     });
     const req = mockReq({ body: validBody });
@@ -101,7 +117,7 @@ describe("registerUser", () => {
   });
 
   it("returns 201 on successful registration", async () => {
-    (UserModel.findOne as jest.Mock).mockResolvedValueOnce(null);
+    mockFindOneResult(null);
     const req = mockReq({ body: validBody });
     const res = mockRes();
     await registerUser(req, res);
@@ -112,9 +128,7 @@ describe("registerUser", () => {
   });
 
   it("returns 500 when a database error occurs", async () => {
-    (UserModel.findOne as jest.Mock).mockRejectedValueOnce(
-      new Error("db error"),
-    );
+    mockFindOneError(new Error("db error"));
     const req = mockReq({ body: validBody });
     const res = mockRes();
     await registerUser(req, res);
@@ -125,7 +139,9 @@ describe("registerUser", () => {
 // ─── loginUser ────────────────────────────────────────────────────────────────
 describe("loginUser", () => {
   it("returns 400 when email is not a string", async () => {
-    const req = mockReq({ body: { email: { $ne: null }, password: "pass" } });
+    const req = mockReq({
+      body: { email: { $ne: null }, password: validCredential },
+    });
     const res = mockRes();
     await loginUser(req, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -142,9 +158,9 @@ describe("loginUser", () => {
   });
 
   it("returns 404 when user is not found", async () => {
-    (UserModel.findOne as jest.Mock).mockResolvedValueOnce(null);
+    mockFindOneResult(null);
     const req = mockReq({
-      body: { email: "nobody@test.com", password: "pass" },
+      body: { email: "nobody@test.com", password: validCredential },
     });
     const res = mockRes();
     await loginUser(req, res);
@@ -155,9 +171,9 @@ describe("loginUser", () => {
     const mockUser = {
       comparePassword: jest.fn().mockResolvedValueOnce(false),
     };
-    (UserModel.findOne as jest.Mock).mockResolvedValueOnce(mockUser);
+    mockFindOneResult(mockUser);
     const req = mockReq({
-      body: { email: "user@test.com", password: "wrong" },
+      body: { email: "user@test.com", password: mismatchedCredential },
     });
     const res = mockRes();
     await loginUser(req, res);
@@ -173,9 +189,9 @@ describe("loginUser", () => {
       isApproved: true,
       comparePassword: jest.fn().mockResolvedValueOnce(true),
     };
-    (UserModel.findOne as jest.Mock).mockResolvedValueOnce(mockUser);
+    mockFindOneResult(mockUser);
     const req = mockReq({
-      body: { email: "bob@test.com", password: "secret" },
+      body: { email: "bob@test.com", password: alternateCredential },
     });
     const res = mockRes();
     await loginUser(req, res);
@@ -185,10 +201,10 @@ describe("loginUser", () => {
   });
 
   it("returns 500 on unexpected error", async () => {
-    (UserModel.findOne as jest.Mock).mockRejectedValueOnce(
-      new Error("db error"),
-    );
-    const req = mockReq({ body: { email: "a@b.com", password: "pass" } });
+    mockFindOneError(new Error("db error"));
+    const req = mockReq({
+      body: { email: "a@b.com", password: validCredential },
+    });
     const res = mockRes();
     await loginUser(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
