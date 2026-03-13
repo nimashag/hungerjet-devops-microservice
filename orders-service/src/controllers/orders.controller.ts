@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import * as OrdersService from "../services/orders.service";
 import { AuthenticatedRequest } from "../middlewares/auth";
-import { fetchMenuItems} from "../api/restaurant.api";
+import { fetchMenuItems } from "../api/restaurant.api";
 import stripe from "../utils/stripe";
 import { logError, logInfo, logWarn } from "../utils/logger";
 
@@ -579,13 +579,20 @@ export const stripeWebhook = async (req: Request, res: Response) => {
   res.json({ received: true });
 };
 
-export const markOrderPaid = async (
+const handleMarkOrderPaid = async (
   req: AuthenticatedRequest,
   res: Response,
+  options: {
+    eventPrefix: "payment.mark_paid" | "payment.mark_as_paid";
+    errorMessage: string;
+    allowDefaultPaymentMethod: boolean;
+  },
 ) => {
+  const { eventPrefix, errorMessage, allowDefaultPaymentMethod } = options;
+
   try {
     if (!req.user) {
-      logWarn("payment.mark_paid.unauthorized", {
+      logWarn(`${eventPrefix}.unauthorized`, {
         orderId: req.params.id,
         reason: "No user in request",
       });
@@ -595,7 +602,7 @@ export const markOrderPaid = async (
     const { id } = req.params;
     const { paymentMethod, transactionId } = req.body;
 
-    logInfo("payment.mark_paid.start", {
+    logInfo(`${eventPrefix}.start`, {
       orderId: id,
       userId: req.user.id,
       paymentMethod,
@@ -603,7 +610,7 @@ export const markOrderPaid = async (
     });
 
     if (!paymentMethod || !transactionId) {
-      logWarn("payment.mark_paid.missing_fields", {
+      logWarn(`${eventPrefix}.missing_fields`, {
         orderId: id,
         userId: req.user.id,
         hasPaymentMethod: !!paymentMethod,
@@ -614,21 +621,24 @@ export const markOrderPaid = async (
         .json({ message: "Payment method and transaction ID are required" });
     }
 
-    // Call the service to update the order's payment status and status
+    const resolvedMethod = allowDefaultPaymentMethod
+      ? paymentMethod || "Stripe"
+      : paymentMethod;
+
     const updatedOrder = await OrdersService.processOrderPayment(id, {
-      method: paymentMethod,
-      transactionId: transactionId,
+      method: resolvedMethod,
+      transactionId,
     });
 
     if (!updatedOrder) {
-      logWarn("payment.mark_paid.not_found", {
+      logWarn(`${eventPrefix}.not_found`, {
         orderId: id,
         userId: req.user.id,
       });
       return res.status(404).json({ message: "Order not found" });
     }
 
-    logInfo("payment.mark_paid.success", {
+    logInfo(`${eventPrefix}.success`, {
       orderId: id,
       userId: req.user.id,
       paymentMethod,
@@ -637,89 +647,40 @@ export const markOrderPaid = async (
       paymentStatus: updatedOrder.paymentStatus,
     });
 
-    res.json(updatedOrder);
+    return res.json(updatedOrder);
   } catch (error) {
     logError(
-      "payment.mark_paid.error",
+      `${eventPrefix}.error`,
       {
         orderId: req.params.id,
         userId: req.user?.id,
       },
       error as Error,
     );
-    res.status(500).json({ message: "Something went wrong" });
+    return res.status(500).json({ message: errorMessage });
   }
+};
+
+export const markOrderPaid = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  return handleMarkOrderPaid(req, res, {
+    eventPrefix: "payment.mark_paid",
+    errorMessage: "Something went wrong",
+    allowDefaultPaymentMethod: false,
+  });
 };
 
 export const markOrderAsPaid = async (
   req: AuthenticatedRequest,
   res: Response,
 ) => {
-  try {
-    if (!req.user) {
-      logWarn("payment.mark_as_paid.unauthorized", {
-        orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
-    }
-
-    const { id } = req.params;
-    const { paymentMethod, transactionId } = req.body;
-
-    logInfo("payment.mark_as_paid.start", {
-      orderId: id,
-      userId: req.user.id,
-      paymentMethod,
-      transactionId,
-    });
-
-    if (!paymentMethod || !transactionId) {
-      logWarn("payment.mark_as_paid.missing_fields", {
-        orderId: id,
-        userId: req.user.id,
-        hasPaymentMethod: !!paymentMethod,
-        hasTransactionId: !!transactionId,
-      });
-      return res
-        .status(400)
-        .json({ message: "Payment method and transaction ID are required" });
-    }
-
-    const updatedOrder = await OrdersService.processOrderPayment(id, {
-      transactionId,
-      method: paymentMethod || "Stripe",
-    });
-
-    if (!updatedOrder) {
-      logWarn("payment.mark_as_paid.not_found", {
-        orderId: id,
-        userId: req.user.id,
-      });
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    logInfo("payment.mark_as_paid.success", {
-      orderId: id,
-      userId: req.user.id,
-      paymentMethod,
-      transactionId,
-      status: updatedOrder.status,
-      paymentStatus: updatedOrder.paymentStatus,
-    });
-
-    res.json(updatedOrder);
-  } catch (err) {
-    logError(
-      "payment.mark_as_paid.error",
-      {
-        orderId: req.params.id,
-        userId: req.user?.id,
-      },
-      err as Error,
-    );
-    res.status(500).json({ message: "Internal server error" });
-  }
+  return handleMarkOrderPaid(req, res, {
+    eventPrefix: "payment.mark_as_paid",
+    errorMessage: "Internal server error",
+    allowDefaultPaymentMethod: true,
+  });
 };
 
 export const updateOrderStatus = async (
