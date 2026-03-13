@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import AdminLayout from "./RestaurantAdminLayout";
 import Swal from "sweetalert2";
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import { restaurantUrl } from "../../../api";
 import httpClient from "../../../utils/httpClient";
 
 const CreateMenuItem = () => {
@@ -20,7 +20,7 @@ const CreateMenuItem = () => {
     price: "",
     imageFile: "",
   });
-  
+
   const [restaurantId, setRestaurantId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -32,21 +32,23 @@ const CreateMenuItem = () => {
       price: form.price > 0 ? "" : "Price must be greater than 0.",
       imageFile: form.imageFile ? "" : "Image is required.",
     };
-  
+
     setErrors(newErrors);
-  
+
     // Return true only if there are no errors
     return Object.values(newErrors).every((err) => err === "");
   };
-  
 
   useEffect(() => {
     const fetchRestaurant = async () => {
       try {
         const token = localStorage.getItem("token");
-        const response = await httpClient.get(`${restaurantUrl}/api/restaurants/my`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
+        const response = await httpClient.get(
+          `${restaurantUrl}/api/restaurants/my`,
+          {
+            headers: { Authorization: `Bearer ${token}` },
+          },
+        );
         const data = response.data;
         setRestaurantId(data[0]?._id || null);
       } catch (error) {
@@ -56,7 +58,9 @@ const CreateMenuItem = () => {
     fetchRestaurant();
   }, []);
 
-  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+  const handleChange = (
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>,
+  ) => {
     setForm({ ...form, [e.target.name]: e.target.value });
   };
 
@@ -66,14 +70,30 @@ const CreateMenuItem = () => {
     }
   };
 
-  const handleSubmit = async () => {
+  const handleSubmit = async (e?: React.FormEvent<HTMLFormElement>) => {
+    e?.preventDefault();
+
     if (!validateForm()) {
-      Swal.fire("Validation Error", "Please fill all fields and upload an image.", "warning");
+      Swal.fire(
+        "Validation Error",
+        "Please fill all fields and upload an image.",
+        "warning",
+      );
       return;
     }
 
-    if (!form.name || !form.category || !form.description || !form.price || !form.imageFile) {
-      Swal.fire("Validation Error", "Please fill all fields and upload an image.", "warning");
+    if (
+      !form.name ||
+      !form.category ||
+      !form.description ||
+      !form.price ||
+      !form.imageFile
+    ) {
+      Swal.fire(
+        "Validation Error",
+        "Please fill all fields and upload an image.",
+        "warning",
+      );
       return;
     }
 
@@ -91,16 +111,22 @@ const CreateMenuItem = () => {
     formData.append("image", form.imageFile);
 
     try {
-      await httpClient.post(`${restaurantUrl}/api/restaurants/${restaurantId}/menu-items`, formData, {
-        headers: { 
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
+      await httpClient.post(
+        `${restaurantUrl}/api/restaurants/${restaurantId}/menu-items`,
+        formData,
+        {
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "multipart/form-data",
+          },
         },
-      });
+      );
 
-      Swal.fire("Success!", "Menu item created successfully!", "success").then(() => {
-        navigate("/restaurant-menu");
-      });
+      Swal.fire("Success!", "Menu item created successfully!", "success").then(
+        () => {
+          navigate("/restaurant-menu");
+        },
+      );
     } catch (error) {
       console.error("Error creating item:", error);
       Swal.fire("Error", "Failed to create menu item.", "error");
@@ -111,83 +137,128 @@ const CreateMenuItem = () => {
     <AdminLayout>
       <div className="p-6 font-['Inter'] text-gray-800 dark:text-gray-100">
         <div className="max-w-3xl mx-auto bg-white dark:bg-gray-800 rounded-xl shadow-md p-8">
-          <h1 className="text-3xl font-bold mb-6 text-center">Create New Menu Item</h1>
+          <h1 className="text-3xl font-bold mb-6 text-center">
+            Create New Menu Item
+          </h1>
 
-          <div className="space-y-4">
+          <form className="space-y-4" onSubmit={handleSubmit} noValidate>
             <div>
-              <label className="block text-sm font-medium mb-1">Name</label>
+              <label
+                htmlFor="menu-item-name"
+                className="block text-sm font-medium mb-1"
+              >
+                Name
+              </label>
               <input
+                id="menu-item-name"
                 type="text"
                 name="name"
                 value={form.name}
                 onChange={handleChange}
                 className="w-full border rounded-md p-2 dark:bg-gray-700"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.name}</p>}
+              {errors.name && (
+                <p className="text-red-500 text-sm mt-1">{errors.name}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Category</label>
+              <label
+                htmlFor="menu-item-category"
+                className="block text-sm font-medium mb-1"
+              >
+                Category
+              </label>
               <input
+                id="menu-item-category"
                 type="text"
                 name="category"
                 value={form.category}
                 onChange={handleChange}
                 className="w-full border rounded-md p-2 dark:bg-gray-700"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.category}</p>}
+              {errors.category && (
+                <p className="text-red-500 text-sm mt-1">{errors.category}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Description</label>
+              <label
+                htmlFor="menu-item-description"
+                className="block text-sm font-medium mb-1"
+              >
+                Description
+              </label>
               <textarea
+                id="menu-item-description"
                 name="description"
                 value={form.description}
                 onChange={handleChange}
                 className="w-full border rounded-md p-2 dark:bg-gray-700"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.description}</p>}
+              {errors.description && (
+                <p className="text-red-500 text-sm mt-1">
+                  {errors.description}
+                </p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Price ($)</label>
+              <label
+                htmlFor="menu-item-price"
+                className="block text-sm font-medium mb-1"
+              >
+                Price ($)
+              </label>
               <input
+                id="menu-item-price"
                 type="number"
                 name="price"
                 value={form.price}
                 onChange={handleChange}
                 className="w-full border rounded-md p-2 dark:bg-gray-700"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.price}</p>}
+              {errors.price && (
+                <p className="text-red-500 text-sm mt-1">{errors.price}</p>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1">Upload Image</label>
+              <label
+                htmlFor="menu-item-image"
+                className="block text-sm font-medium mb-1"
+              >
+                Upload Image
+              </label>
               <input
+                id="menu-item-image"
                 type="file"
                 name="image"
                 accept="image/*"
                 onChange={handleImageChange}
                 className="w-full"
               />
-              {errors.name && <p className="text-red-500 text-sm mt-1">{errors.imageFile}</p>}
+              {errors.imageFile && (
+                <p className="text-red-500 text-sm mt-1">{errors.imageFile}</p>
+              )}
             </div>
 
             <div className="flex justify-end gap-3 pt-6">
               <button
+                type="button"
                 onClick={() => navigate("/restaurant-menu")}
                 className="px-5 py-2 rounded-full bg-red-500 hover:bg-red-800 text-white text-sm font-semibold"
               >
                 Cancel
               </button>
               <button
-                onClick={handleSubmit}
+                type="submit"
                 className="px-5 py-2 rounded-full bg-green-600 hover:bg-green-700 text-white text-sm font-semibold"
               >
                 Create Item
               </button>
             </div>
-          </div>
+          </form>
         </div>
       </div>
     </AdminLayout>

@@ -35,27 +35,42 @@ const isLikelyValidEmail = (email: string): boolean => {
   return true;
 };
 
-const createSafeEmailFilter = (email: string): { email: string } | null => {
-  const sanitizedFilter = mongoSanitize({ email });
-  if (
-    !sanitizedFilter ||
-    typeof sanitizedFilter !== "object" ||
-    Array.isArray(sanitizedFilter)
-  ) {
-    return null;
-  }
-
-  const safeEmail = (sanitizedFilter as Record<string, unknown>).email;
-  if (typeof safeEmail !== "string") return null;
-
-  return { email: safeEmail };
-};
-
 const normalizeEmail = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
   if (!isLikelyValidEmail(normalized)) return null;
   return normalized;
+};
+
+const sanitizeEmailValue = (email: string): string | null => {
+  const sanitizedValue = mongoSanitize(email);
+  if (typeof sanitizedValue !== "string") {
+    return null;
+  }
+
+  return sanitizedValue === email ? sanitizedValue : null;
+};
+
+const findUserByEmail = async (email: string) => {
+  const safeEmail = sanitizeEmailValue(email);
+  if (!safeEmail) {
+    return null;
+  }
+
+  return UserModel.findOne().where("email").equals(safeEmail);
+};
+
+const findExistingUserIdByEmail = async (email: string) => {
+  const safeEmail = sanitizeEmailValue(email);
+  if (!safeEmail) {
+    return null;
+  }
+
+  return UserModel.findOne()
+    .where("email")
+    .equals(safeEmail)
+    .select("_id")
+    .lean();
 };
 
 const ensureValidObjectId = (id: string, res: Response): boolean => {
@@ -86,14 +101,11 @@ export const registerUser = async (req: Request, res: Response) => {
       role: sanitizeForLog(role),
     });
 
-    const safeEmailFilter = createSafeEmailFilter(normalizedEmail);
-    if (!safeEmailFilter) {
+    const existingUser = await findExistingUserIdByEmail(normalizedEmail);
+    if (existingUser === null) {
       return res.status(400).json({ message: "Invalid registration input" });
     }
 
-    const existingUser = await UserModel.findOne(safeEmailFilter)
-      .select("_id")
-      .lean();
     if (existingUser) {
       return res.status(409).json({ message: "User already exists" });
     }
@@ -126,12 +138,11 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid credentials format" });
     }
 
-    const safeEmailFilter = createSafeEmailFilter(normalizedEmail);
-    if (!safeEmailFilter) {
+    const user = await findUserByEmail(normalizedEmail);
+    if (user === null) {
       return res.status(400).json({ message: "Invalid credentials format" });
     }
 
-    const user = await UserModel.findOne(safeEmailFilter);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await user.comparePassword(password);
