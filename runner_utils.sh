@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Common Docker utilities that are independent of deployment method (k8s, docker-compose, etc.)
+# Common Docker utilities used by the Docker Compose workflow
 
 CONFIG_FILE="${CONFIG_FILE:-services.config.json}"
 DOCKER_DEV_REGISTRY="${DOCKER_DEV_REGISTRY:-docker.io}"

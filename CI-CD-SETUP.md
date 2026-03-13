@@ -228,9 +228,6 @@ Before pushing, you can test the health endpoints:
 ```bash
 # Using Docker Compose
 ./runner_docker.sh up
-
-# OR using Kubernetes
-./runner_k8s.sh up
 ```
 
 ### 7.2 Test Health Endpoints
