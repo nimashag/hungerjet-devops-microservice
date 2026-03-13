@@ -46,7 +46,7 @@ const RegisterDelivery = () => {
     });
 
     if (form.password.length < 6) {
-      tempErrors.password = "Password must be at least 6 characters";
+      tempErrors.password = "Must be at least 6 characters";
       isValid = false;
     }
 

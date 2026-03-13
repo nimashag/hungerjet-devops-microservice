@@ -37,10 +37,10 @@ const RegisterCustomer = () => {
       isValid = false;
     }
     if (!form.password.trim()) {
-      tempErrors.password = "Password is required";
+      tempErrors.password = "This field is required";
       isValid = false;
     } else if (form.password.length < 6) {
-      tempErrors.password = "Password must be at least 6 characters";
+      tempErrors.password = "Must be at least 6 characters";
       isValid = false;
     }
     if (!form.phone.trim()) {
