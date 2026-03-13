@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
 import { userUrl } from "../../../api";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const RegisterCustomer = () => {
   const [form, setForm] = useState({
@@ -36,11 +37,9 @@ const RegisterCustomer = () => {
       tempErrors.email = "Invalid email address";
       isValid = false;
     }
-    if (!form.password.trim()) {
-      tempErrors.password = "This field is required";
-      isValid = false;
-    } else if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       isValid = false;
     }
     if (!form.phone.trim()) {

@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
 import { userUrl } from "../../../api";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const RegisterDelivery = () => {
   const [form, setForm] = useState({
@@ -45,8 +46,9 @@ const RegisterDelivery = () => {
       }
     });
 
-    if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       isValid = false;
     }
 
@@ -128,7 +130,9 @@ const RegisterDelivery = () => {
                   }`}
                 />
                 {errors[field.name] && (
-                  <p className="text-red-500 text-sm mt-1">{errors[field.name]}</p>
+                  <p className="text-red-500 text-sm mt-1">
+                    {errors[field.name]}
+                  </p>
                 )}
               </div>
             ))}
@@ -153,7 +157,10 @@ const RegisterDelivery = () => {
 
           <p className="text-center text-sm mt-6">
             Already registered?{" "}
-            <Link to="/login/delivery" className="text-green-600 hover:underline">
+            <Link
+              to="/login/delivery"
+              className="text-green-600 hover:underline"
+            >
               Login here
             </Link>
           </p>

@@ -661,26 +661,30 @@ const handleMarkOrderPaid = async (
   }
 };
 
+const MARK_PAID_OPTIONS = {
+  eventPrefix: "payment.mark_paid" as const,
+  errorMessage: "Something went wrong",
+  allowDefaultPaymentMethod: false,
+};
+
+const MARK_AS_PAID_OPTIONS = {
+  eventPrefix: "payment.mark_as_paid" as const,
+  errorMessage: "Internal server error",
+  allowDefaultPaymentMethod: true,
+};
+
 export const markOrderPaid = async (
   req: AuthenticatedRequest,
   res: Response,
 ) => {
-  return handleMarkOrderPaid(req, res, {
-    eventPrefix: "payment.mark_paid",
-    errorMessage: "Something went wrong",
-    allowDefaultPaymentMethod: false,
-  });
+  return handleMarkOrderPaid(req, res, MARK_PAID_OPTIONS);
 };
 
 export const markOrderAsPaid = async (
   req: AuthenticatedRequest,
   res: Response,
 ) => {
-  return handleMarkOrderPaid(req, res, {
-    eventPrefix: "payment.mark_as_paid",
-    errorMessage: "Internal server error",
-    allowDefaultPaymentMethod: true,
-  });
+  return handleMarkOrderPaid(req, res, MARK_AS_PAID_OPTIONS);
 };
 
 export const updateOrderStatus = async (

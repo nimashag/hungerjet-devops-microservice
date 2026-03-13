@@ -2,12 +2,21 @@ import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import {
+  apiBase,
+  userUrl,
+  restaurantUrl,
+  orderUrl,
+  deliveryUrl,
+} from "../../../api";
 import { resetSessionId } from "../../../utils/sessionManager";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const LoginRestaurant = () => {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
   const liquidRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -28,11 +37,9 @@ const LoginRestaurant = () => {
       valid = false;
     }
 
-    if (!form.password.trim()) {
-      tempErrors.password = "This field is required";
-      valid = false;
-    } else if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       valid = false;
     }
 
@@ -47,11 +54,8 @@ const LoginRestaurant = () => {
     try {
       // Generate new session ID BEFORE login request so login uses the new sessionId
       resetSessionId();
-      
-      const res = await httpClient.post(
-        `${userUrl}/api/auth/login`,
-        form
-      );
+
+      const res = await httpClient.post(`${userUrl}/api/auth/login`, form);
       console.log(`Login response: ${JSON.stringify(res)}`);
 
       const { token, user } = res.data;
@@ -108,7 +112,9 @@ const LoginRestaurant = () => {
                   errors.email ? "border-red-500" : "focus:ring-green-500"
                 }`}
               />
-              {errors.email && <p className="text-red-500 text-sm mt-1">{errors.email}</p>}
+              {errors.email && (
+                <p className="text-red-500 text-sm mt-1">{errors.email}</p>
+              )}
             </div>
 
             <div>
@@ -122,7 +128,9 @@ const LoginRestaurant = () => {
                   errors.password ? "border-red-500" : "focus:ring-green-500"
                 }`}
               />
-              {errors.password && <p className="text-red-500 text-sm mt-1">{errors.password}</p>}
+              {errors.password && (
+                <p className="text-red-500 text-sm mt-1">{errors.password}</p>
+              )}
             </div>
 
             <div className="text-right text-sm text-green-600 hover:underline cursor-pointer">

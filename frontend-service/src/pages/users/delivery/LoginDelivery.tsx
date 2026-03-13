@@ -2,12 +2,21 @@ import { useState, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import httpClient from "../../../utils/httpClient";
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import {
+  apiBase,
+  userUrl,
+  restaurantUrl,
+  orderUrl,
+  deliveryUrl,
+} from "../../../api";
 import { resetSessionId } from "../../../utils/sessionManager";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const LoginDelivery = () => {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
   const liquidRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -28,11 +37,9 @@ const LoginDelivery = () => {
       valid = false;
     }
 
-    if (!form.password.trim()) {
-      tempErrors.password = "This field is required";
-      valid = false;
-    } else if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       valid = false;
     }
 
@@ -42,39 +49,43 @@ const LoginDelivery = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-  
+
     if (!validateForm()) return;
-  
+
     try {
       // Generate new session ID BEFORE login request so login uses the new sessionId
       resetSessionId();
-      
+
       const res = await httpClient.post(`${userUrl}/api/auth/login`, form);
-  
+
       //  Save token and user after successful login
-      if (res.data.user.role === 'deliveryPersonnel') {
+      if (res.data.user.role === "deliveryPersonnel") {
         localStorage.setItem("token", res.data.token);
         localStorage.setItem("user", JSON.stringify(res.data.user));
-  
+
         const token = res.data.token;
         try {
           //  Immediately check if driver profile exists
-          const profileRes = await httpClient.get(`${deliveryUrl}/api/drivers/me`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
+          const profileRes = await httpClient.get(
+            `${deliveryUrl}/api/drivers/me`,
+            {
+              headers: {
+                Authorization: `Bearer ${token}`,
+              },
             },
-          });
-  
+          );
+
           console.log("Driver profile found ");
-          navigate('/driver/dashboard'); //  Driver profile exists
-  
+          navigate("/driver/dashboard"); //  Driver profile exists
         } catch (profileErr: any) {
           if (profileErr.response?.status === 404) {
-            console.log("Driver profile missing  Redirecting to register profile...");
-            navigate('/driver/register-profile'); //  Driver profile missing
+            console.log(
+              "Driver profile missing  Redirecting to register profile...",
+            );
+            navigate("/driver/register-profile"); //  Driver profile missing
           } else {
             console.error("Error checking driver profile", profileErr);
-            alert('Error verifying driver profile. Please try again.');
+            alert("Error verifying driver profile. Please try again.");
           }
         }
       } else {
@@ -82,10 +93,10 @@ const LoginDelivery = () => {
       }
     } catch (err: any) {
       console.error(err);
-      alert(err.response?.data?.message || 'Login failed');
+      alert(err.response?.data?.message || "Login failed");
     }
   };
-  
+
   const handleMouseEnter = () => {
     gsap.to(liquidRef.current, {
       x: 0,

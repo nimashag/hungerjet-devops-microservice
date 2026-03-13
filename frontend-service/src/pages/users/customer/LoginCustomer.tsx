@@ -4,10 +4,13 @@ import gsap from "gsap";
 import httpClient from "../../../utils/httpClient";
 import { userUrl } from "../../../api";
 import { resetSessionId } from "../../../utils/sessionManager";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const LoginCustomer = () => {
   const [form, setForm] = useState({ email: "", password: "" });
-  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>(
+    {},
+  );
   const liquidRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -28,11 +31,9 @@ const LoginCustomer = () => {
       valid = false;
     }
 
-    if (!form.password.trim()) {
-      tempErrors.password = "This field is required";
-      valid = false;
-    } else if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       valid = false;
     }
 
@@ -47,19 +48,20 @@ const LoginCustomer = () => {
     try {
       // Generate new session ID BEFORE login request so login uses the new sessionId
       resetSessionId();
-      
+
       const res = await httpClient.post(`${userUrl}/api/auth/login`, form);
       const { token, user } = res.data;
 
       if (user.role === "customer") {
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(user));
-        navigate('/customer-home');
+        navigate("/customer-home");
       } else {
         alert("Access denied: Not a customer account");
       }
     } catch (err: any) {
-      const message = err.response?.data?.message || "Invalid credentials or server error";
+      const message =
+        err.response?.data?.message || "Invalid credentials or server error";
       alert(message);
     }
   };

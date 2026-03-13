@@ -2,7 +2,14 @@ import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import {
+  apiBase,
+  userUrl,
+  restaurantUrl,
+  orderUrl,
+  deliveryUrl,
+} from "../../../api";
+import { getPasswordValidationError } from "../../../utils/authValidation";
 
 const RegisterRestaurant = () => {
   const [form, setForm] = useState({
@@ -35,8 +42,9 @@ const RegisterRestaurant = () => {
       }
     });
 
-    if (form.password.length < 6) {
-      tempErrors.password = "Must be at least 6 characters";
+    const passwordError = getPasswordValidationError(form.password);
+    if (passwordError) {
+      tempErrors.password = passwordError;
       isValid = false;
     }
 
