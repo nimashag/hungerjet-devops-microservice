@@ -176,8 +176,7 @@ jobs:
             cd ..
           done
       
-      # Placeholder for SonarCloud (will be activated in Phase 3)
-      - name: SonarCloud Scan (Ready for Phase 3)
-        run: |
-          echo "SonarCloud will be configured in Phase 3"
-          echo "Repository: https://github.com/nimashag/hungerjet-devops-microservice"
+      - name: SonarCloud Scan
+        uses: SonarSource/sonarqube-scan-action@v5
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
