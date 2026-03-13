@@ -14,22 +14,47 @@ import {
 } from "../services/delivery.service";
 import { Driver } from "../models/driver.model";
 import { httpClient } from "../utils/httpClient";
-import { Delivery } from "../models/delivery.model";
 import { sendSMS } from "../services/sms.service";
 import { logError, logInfo, logWarn } from "../utils/logger";
 import dotenv from "dotenv";
 
 dotenv.config();
 
-const RESTAURANTS_SERVICE_URL = process.env.RESTAURANTS_SERVICE_URL || "http://restaurants-service:3001/api/restaurants";
-const ORDER_SERVICE_BASE_URL = process.env.ORDERS_SERVICE_URL || "http://orders-service:3002/api/orders";
-const USER_SERVICE_BASE_URL = process.env.USERS_SERVICE_URL || "http://users-service:3003/api/auth";
+const RESTAURANTS_SERVICE_URL =
+  process.env.RESTAURANTS_SERVICE_URL ||
+  "https://restaurants-service:3001/api/restaurants";
+const ORDER_SERVICE_BASE_URL =
+  process.env.ORDERS_SERVICE_URL || "https://orders-service:3002/api/orders";
+const USER_SERVICE_BASE_URL =
+  process.env.USERS_SERVICE_URL || "https://users-service:3003/api/auth";
+
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export const assignDriverAutomatically = async (
   req: Request,
-  res: Response
+  res: Response,
 ) => {
   const { orderId, customerId, restaurantId } = req.body;
+
+  if (
+    typeof orderId !== "string" ||
+    typeof customerId !== "string" ||
+    typeof restaurantId !== "string"
+  ) {
+    return res.status(400).json({
+      message:
+        "Invalid input: orderId, customerId, and restaurantId must be strings",
+    });
+  }
+
+  if (
+    !SAFE_ID_PATTERN.test(orderId) ||
+    !SAFE_ID_PATTERN.test(customerId) ||
+    !SAFE_ID_PATTERN.test(restaurantId)
+  ) {
+    return res.status(400).json({ message: "Invalid ID format" });
+  }
+
   logInfo("delivery.assign.auto.start", {
     orderId,
     customerId,
@@ -38,7 +63,7 @@ export const assignDriverAutomatically = async (
   });
   try {
     const restaurantRes = await httpClient.get(
-      `${RESTAURANTS_SERVICE_URL}/${restaurantId}`
+      `${RESTAURANTS_SERVICE_URL}/${encodeURIComponent(restaurantId)}`,
     );
     const restaurant = restaurantRes.data;
 
@@ -46,13 +71,13 @@ export const assignDriverAutomatically = async (
       return res.status(400).json({ message: "Restaurant not available" });
 
     const orderRes = await httpClient.get(
-      `${ORDER_SERVICE_BASE_URL}/${orderId}`
+      `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(orderId)}`,
     );
     const order = orderRes.data;
 
     const driver = await findAvailableDriver(
       restaurant.location,
-      order.deliveryAddress.city
+      order.deliveryAddress.city,
     );
 
     if (!driver)
@@ -75,7 +100,11 @@ export const assignDriverAutomatically = async (
     });
     res.status(200).json({ message: "Driver assigned", delivery });
   } catch (error: any) {
-    logError("delivery.assign.auto.error", { orderId, customerId, restaurantId }, error);
+    logError(
+      "delivery.assign.auto.error",
+      { orderId, customerId, restaurantId },
+      error,
+    );
     res
       .status(500)
       .json({ message: "Error assigning driver", error: error.message });
@@ -84,6 +113,19 @@ export const assignDriverAutomatically = async (
 
 export const respondToAssignment = async (req: Request, res: Response) => {
   const { orderId, action } = req.body;
+
+  if (typeof orderId !== "string" || !orderId.trim()) {
+    return res
+      .status(400)
+      .json({ message: "Invalid input: orderId must be a non-empty string" });
+  }
+  if (!SAFE_ID_PATTERN.test(orderId)) {
+    return res.status(400).json({ message: "Invalid orderId format" });
+  }
+  const allowedActions = ["accept", "decline"];
+  if (!allowedActions.includes(action)) {
+    return res.status(400).json({ message: "Invalid action" });
+  }
 
   try {
     const delivery = await findDeliveryByOrderId(orderId);
@@ -97,13 +139,13 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 
       try {
         const orderRes = await httpClient.get(
-          `${ORDER_SERVICE_BASE_URL}/${orderId}`
+          `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(orderId)}`,
         );
         const order = orderRes.data;
 
         const newDriver = await findAvailableDriver(
           delivery.restaurantLocation,
-          order.deliveryAddress.city
+          order.deliveryAddress.city,
         );
 
         if (newDriver) {
@@ -161,6 +203,9 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 export const getAssignedOrders = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user.id;
+    if (typeof userId !== "string") {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     logInfo("delivery.assigned.list.start", { userId });
 
     // 1️⃣ Find Driver by userId
@@ -169,19 +214,28 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Driver not found" });
     }
 
-    logInfo("delivery.assigned.driver.found", { userId, driverId: driver._id.toString() });
+    logInfo("delivery.assigned.driver.found", {
+      userId,
+      driverId: driver._id.toString(),
+    });
 
     // 2️⃣ Find assigned deliveries
     const deliveries = await findAssignedDeliveriesForDriver(
-      driver._id.toString()
+      driver._id.toString(),
     );
 
     // 3️⃣ Fetch full deliveryAddress for each order
     const enhancedDeliveries = await Promise.all(
       deliveries.map(async (delivery) => {
         try {
+          if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
+            logWarn("delivery.assigned.order.invalidId", {
+              orderId: delivery.orderId,
+            });
+            return { ...delivery.toObject(), deliveryAddress: null };
+          }
           const orderRes = await httpClient.get(
-            `${ORDER_SERVICE_BASE_URL}/${delivery.orderId}`
+            `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(delivery.orderId)}`,
           );
           const order = orderRes.data;
 
@@ -203,12 +257,16 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
             deliveryAddress: null,
           };
         }
-      })
+      }),
     );
 
     res.status(200).json(enhancedDeliveries);
   } catch (error: any) {
-    logError("delivery.assigned.list.error", { userId: (req as any).user?.id }, error);
+    logError(
+      "delivery.assigned.list.error",
+      { userId: (req as any).user?.id },
+      error,
+    );
     res.status(500).json({
       message: "Error fetching assigned deliveries",
       error: error.message,
@@ -228,6 +286,12 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
     }
 
     logInfo("delivery.my_deliveries.start", { userId });
+    if (typeof userId !== "string") {
+      logWarn("delivery.my_deliveries.unauthorized", {
+        reason: "userId is not a string",
+      });
+      return res.status(401).json({ message: "Unauthorized" });
+    }
     const driver = await Driver.findOne({ userId });
 
     if (!driver) {
@@ -251,8 +315,14 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
     const enhancedDeliveries = await Promise.all(
       deliveries.map(async (delivery) => {
         try {
+          if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
+            logWarn("delivery.my_deliveries.order.invalidId", {
+              orderId: delivery.orderId,
+            });
+            return { ...delivery.toObject(), deliveryAddress: null };
+          }
           const orderRes = await httpClient.get(
-            `${ORDER_SERVICE_BASE_URL}/${delivery.orderId}`
+            `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(delivery.orderId)}`,
           );
           const order = orderRes.data;
 
@@ -271,7 +341,7 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
             deliveryAddress: null,
           };
         }
-      })
+      }),
     );
 
     logInfo("delivery.my_deliveries.success", {
@@ -282,9 +352,13 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
 
     res.status(200).json(enhancedDeliveries);
   } catch (error: any) {
-    logError("delivery.my_deliveries.error", {
-      userId: (req as any).user?.id,
-    }, error);
+    logError(
+      "delivery.my_deliveries.error",
+      {
+        userId: (req as any).user?.id,
+      },
+      error,
+    );
     res
       .status(500)
       .json({ message: "Error fetching deliveries", error: error.message });
@@ -327,16 +401,30 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
     // Step 2: If the status is "Delivered", send an email to the customer
     if (status === "Delivered") {
       // Fetch the order details to get the userId
-      logInfo("delivery.status.fetchOrder.start", { orderId: updatedDelivery.orderId });
+      if (!SAFE_ID_PATTERN.test(updatedDelivery.orderId)) {
+        logWarn("delivery.status.invalidOrderId", {
+          orderId: updatedDelivery.orderId,
+        });
+        return res.status(500).json({ message: "Invalid delivery record" });
+      }
+      logInfo("delivery.status.fetchOrder.start", {
+        orderId: updatedDelivery.orderId,
+      });
       const orderRes = await httpClient.get(
-        `${ORDER_SERVICE_BASE_URL}/${updatedDelivery.orderId}`
+        `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(updatedDelivery.orderId)}`,
       );
       const order = orderRes.data;
-      logInfo("delivery.status.fetchOrder.success", { orderId: updatedDelivery.orderId });
+      logInfo("delivery.status.fetchOrder.success", {
+        orderId: updatedDelivery.orderId,
+      });
 
+      if (!SAFE_ID_PATTERN.test(String(order.userId))) {
+        logWarn("delivery.status.invalidUserId", { userId: order.userId });
+        return res.status(500).json({ message: "Invalid order record" });
+      }
       // Fetch the customer details from the user service using userId
       const userRes = await httpClient.get(
-        `${USER_SERVICE_BASE_URL}/${order.userId}`
+        `${USER_SERVICE_BASE_URL}/${encodeURIComponent(order.userId)}`,
       );
       const user = userRes.data;
       logInfo("delivery.status.fetchUser.success", { userId: user._id });
@@ -363,12 +451,18 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
 
       // Send the email to the customer
       if (customerEmail) {
-        logInfo("delivery.status.notify.email", { to: customerEmail, orderId: updatedDelivery.orderId });
+        logInfo("delivery.status.notify.email", {
+          to: customerEmail,
+          orderId: updatedDelivery.orderId,
+        });
         await sendEmail(customerEmail, subject, text);
       }
       // Send SMS if the phone number exists
       if (customerPhone) {
-        logInfo("delivery.status.notify.sms", { to: customerPhone, orderId: updatedDelivery.orderId });
+        logInfo("delivery.status.notify.sms", {
+          to: customerPhone,
+          orderId: updatedDelivery.orderId,
+        });
         await sendSMS(customerPhone, message);
       }
     }
@@ -385,11 +479,15 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
       updatedDelivery,
     });
   } catch (error: any) {
-    logError("delivery.update_status.error", {
-      deliveryId: req.params.deliveryId,
-      userId: (req as any).user?.id,
-      status,
-    }, error);
+    logError(
+      "delivery.update_status.error",
+      {
+        deliveryId: req.params.deliveryId,
+        userId: (req as any).user?.id,
+        newStatus: req.body?.status,
+      },
+      error,
+    );
     res.status(500).json({
       message: "Error updating delivery status",
       error: error.message,

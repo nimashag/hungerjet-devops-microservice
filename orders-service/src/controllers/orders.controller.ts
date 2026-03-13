@@ -1,9 +1,11 @@
 import { Request, Response } from "express";
 import * as OrdersService from "../services/orders.service";
 import { AuthenticatedRequest } from "../middlewares/auth";
-import { fetchMenuItems, fetchRestaurant } from "../api/restaurant.api";
-import stripe from '../utils/stripe';
+import { fetchMenuItems} from "../api/restaurant.api";
+import stripe from "../utils/stripe";
 import { logError, logInfo, logWarn } from "../utils/logger";
+
+const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
 export const create = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -33,6 +35,17 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
+    if (
+      typeof restaurantId !== "string" ||
+      !SAFE_ID_PATTERN.test(restaurantId)
+    ) {
+      logWarn("order.create.invalid_restaurant_id", {
+        userId: req.user.id,
+        restaurantId,
+      });
+      return res.status(400).json({ message: "Invalid restaurantId format" });
+    }
+
     // 🔗 Fetch menu items from the restaurant service
     logInfo("order.create.fetching_menu_items", {
       restaurantId,
@@ -45,7 +58,9 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
         userId: req.user.id,
         reason: "No menu items found for restaurant",
       });
-      return res.status(400).json({ message: "No menu items found for this restaurant." });
+      return res
+        .status(400)
+        .json({ message: "No menu items found for this restaurant." });
     }
     logInfo("order.create.menu_items_fetched", {
       restaurantId,
@@ -63,7 +78,7 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
         specialInstructions,
         restaurantId,
       },
-      req.user.id
+      req.user.id,
     );
 
     logInfo("order.create.success", {
@@ -76,10 +91,14 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
     });
     res.json(order);
   } catch (err) {
-    logError("order.create.error", {
-      userId: req.user?.id,
-      restaurantId: req.body?.restaurantId,
-    }, err as Error);
+    logError(
+      "order.create.error",
+      {
+        userId: req.user?.id,
+        restaurantId: req.body?.restaurantId,
+      },
+      err as Error,
+    );
     res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -101,7 +120,7 @@ export const getOne = async (req: Request, res: Response) => {
     res.json(order);
   } catch (err: any) {
     // Handle CastError (invalid ObjectId format)
-    if (err.name === 'CastError') {
+    if (err.name === "CastError") {
       logWarn("order.get_one.invalid_id", { orderId: req.params.id });
       return res.status(400).json({ message: "Invalid order ID format" });
     }
@@ -123,7 +142,10 @@ export const getAll = async (_req: Request, res: Response) => {
 };
 
 // Update delivery address
-export const updateDeliveryAddress = async (req: AuthenticatedRequest, res: Response) => {
+export const updateDeliveryAddress = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("order.update_delivery_address.unauthorized", {
@@ -149,7 +171,9 @@ export const updateDeliveryAddress = async (req: AuthenticatedRequest, res: Resp
       return res.status(400).json({ message: "Delivery address is required" });
     }
 
-    const updatedOrder = await OrdersService.updateOrder(id, { deliveryAddress });
+    const updatedOrder = await OrdersService.updateOrder(id, {
+      deliveryAddress,
+    });
 
     if (!updatedOrder) {
       logWarn("order.update_delivery_address.not_found", {
@@ -165,16 +189,23 @@ export const updateDeliveryAddress = async (req: AuthenticatedRequest, res: Resp
     });
     res.json(updatedOrder);
   } catch (error) {
-    logError("order.update_delivery_address.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, error as Error);
+    logError(
+      "order.update_delivery_address.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      error as Error,
+    );
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
 // Update special instructions
-export const updateSpecialInstructions = async (req: AuthenticatedRequest, res: Response) => {
+export const updateSpecialInstructions = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("order.update_special_instructions.unauthorized", {
@@ -197,10 +228,14 @@ export const updateSpecialInstructions = async (req: AuthenticatedRequest, res: 
         orderId: id,
         userId: req.user.id,
       });
-      return res.status(400).json({ message: "Special instructions are required" });
+      return res
+        .status(400)
+        .json({ message: "Special instructions are required" });
     }
 
-    const updatedOrder = await OrdersService.updateOrder(id, { specialInstructions });
+    const updatedOrder = await OrdersService.updateOrder(id, {
+      specialInstructions,
+    });
 
     if (!updatedOrder) {
       logWarn("order.update_special_instructions.not_found", {
@@ -216,10 +251,14 @@ export const updateSpecialInstructions = async (req: AuthenticatedRequest, res: 
     });
     res.json(updatedOrder);
   } catch (error) {
-    logError("order.update_special_instructions.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, error as Error);
+    logError(
+      "order.update_special_instructions.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      error as Error,
+    );
     res.status(500).json({ message: "Internal server error" });
   }
 };
@@ -232,7 +271,10 @@ export const getByRestaurantId = async (req: Request, res: Response) => {
 
     const orders = await OrdersService.getOrdersByRestaurantId(restaurantId);
 
-    logInfo("order.byRestaurant.success", { restaurantId, count: orders.length });
+    logInfo("order.byRestaurant.success", {
+      restaurantId,
+      count: orders.length,
+    });
     res.json(orders);
   } catch (err) {
     logError("order.byRestaurant.error", { restaurantId }, err as Error);
@@ -251,7 +293,9 @@ export const update = async (req: AuthenticatedRequest, res: Response) => {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const fieldsToUpdate = Object.keys(req.body).filter(key => req.body[key] !== undefined);
+    const fieldsToUpdate = Object.keys(req.body).filter(
+      (key) => req.body[key] !== undefined,
+    );
     logInfo("order.update.start", {
       orderId: req.params.id,
       userId: req.user.id,
@@ -274,7 +318,11 @@ export const update = async (req: AuthenticatedRequest, res: Response) => {
     // Get user email
     const userEmail = "dev40.emailtest@gmail.com";
 
-    const updated = await OrdersService.updateOrder(req.params.id, updateData, userEmail);
+    const updated = await OrdersService.updateOrder(
+      req.params.id,
+      updateData,
+      userEmail,
+    );
 
     if (!updated) {
       logWarn("order.update.update_failed", {
@@ -292,10 +340,14 @@ export const update = async (req: AuthenticatedRequest, res: Response) => {
     });
     res.json(updated);
   } catch (err) {
-    logError("order.update.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, err as Error);
+    logError(
+      "order.update.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      err as Error,
+    );
     res.status(500).json({ message: "Something went wrong" });
   }
 };
@@ -332,15 +384,22 @@ export const deleteOrder = async (req: AuthenticatedRequest, res: Response) => {
     });
     return res.status(200).json({ message: "Order deleted successfully" });
   } catch (err) {
-    logError("order.delete.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, err as Error);
+    logError(
+      "order.delete.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      err as Error,
+    );
     return res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-export const getCurrentUserOrders = async (req: AuthenticatedRequest, res: Response) => {
+export const getCurrentUserOrders = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("order.get_by_user.unauthorized", {
@@ -348,14 +407,14 @@ export const getCurrentUserOrders = async (req: AuthenticatedRequest, res: Respo
       });
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     logInfo("order.get_by_user.start", { userId: req.user.id });
     const orders = await OrdersService.getOrdersByUserId(req.user.id);
     logInfo("order.get_by_user.success", {
       userId: req.user.id,
       count: orders.length,
     });
-    
+
     res.json(orders);
   } catch (err) {
     logError("order.get_by_user.error", { userId: req.user?.id }, err as Error);
@@ -363,7 +422,10 @@ export const getCurrentUserOrders = async (req: AuthenticatedRequest, res: Respo
   }
 };
 
-export const createPaymentIntent = async (req: AuthenticatedRequest, res: Response) => {
+export const createPaymentIntent = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("payment.intent.create.unauthorized", {
@@ -391,7 +453,9 @@ export const createPaymentIntent = async (req: AuthenticatedRequest, res: Respon
         userId: req.user.id,
         totalAmount,
       });
-      return res.status(400).json({ message: "Total amount must be greater than 0." });
+      return res
+        .status(400)
+        .json({ message: "Total amount must be greater than 0." });
     }
 
     const itemDetails = Array.isArray(req.body.items)
@@ -403,8 +467,8 @@ export const createPaymentIntent = async (req: AuthenticatedRequest, res: Respon
 
     const paymentIntent = await stripe.paymentIntents.create({
       amount: Math.round(finalAmount * 100), // 💳 Stripe accepts amounts in cents
-      currency: 'usd', // or your preferred currency
-      payment_method_types: ['card'],
+      currency: "usd", // or your preferred currency
+      payment_method_types: ["card"],
     });
 
     logInfo("payment.intent.create.success", {
@@ -414,49 +478,63 @@ export const createPaymentIntent = async (req: AuthenticatedRequest, res: Respon
       currency: paymentIntent.currency,
     });
 
-    res.json({ 
+    res.json({
       clientSecret: paymentIntent.client_secret,
-      items: itemDetails
+      items: itemDetails,
     });
   } catch (error) {
-    logError("payment.intent.create.error", {
-      userId: req.user?.id,
-      totalAmount: req.body?.totalAmount,
-    }, error as Error);
-    res.status(500).json({ message: "Something went wrong while creating payment intent" });
+    logError(
+      "payment.intent.create.error",
+      {
+        userId: req.user?.id,
+        totalAmount: req.body?.totalAmount,
+      },
+      error as Error,
+    );
+    res
+      .status(500)
+      .json({ message: "Something went wrong while creating payment intent" });
   }
 };
 
 export const stripeWebhook = async (req: Request, res: Response) => {
-  const sig = req.headers['stripe-signature'];
+  const sig = req.headers["stripe-signature"];
   const endpointSecret = process.env.STRIPE_ENDPOINT_SECRET as string; // <-- we'll get it soon
-  
+
   logInfo("payment.webhook.received", {
     hasSignature: !!sig,
-    contentType: req.get('content-type'),
+    contentType: req.get("content-type"),
   });
 
   let event;
 
   try {
-    event = stripe.webhooks.constructEvent(req.body, sig as string, endpointSecret);
+    event = stripe.webhooks.constructEvent(
+      req.body,
+      sig as string,
+      endpointSecret,
+    );
     logInfo("payment.webhook.verified", {
       eventType: event.type,
       eventId: event.id,
     });
   } catch (err: any) {
-    logError("payment.webhook.verify_failed", {
-      hasSignature: !!sig,
-      errorMessage: err.message,
-    }, err as Error);
+    logError(
+      "payment.webhook.verify_failed",
+      {
+        hasSignature: !!sig,
+        errorMessage: err.message,
+      },
+      err as Error,
+    );
     return res.status(400).send(`Webhook Error: ${err.message}`);
   }
 
   // Handle event types
-  if (event.type === 'payment_intent.succeeded') {
+  if (event.type === "payment_intent.succeeded") {
     const paymentIntent = event.data.object as any;
     const orderId = paymentIntent.metadata?.orderId; // Assuming you store the orderId in metadata
-    
+
     logInfo("payment.webhook.processing", {
       eventType: event.type,
       paymentIntentId: paymentIntent.id,
@@ -467,19 +545,23 @@ export const stripeWebhook = async (req: Request, res: Response) => {
     if (orderId) {
       try {
         await OrdersService.processOrderPayment(orderId, {
-          method: 'Stripe',
+          method: "Stripe",
           transactionId: paymentIntent.id,
         });
-        
-        logInfo('payment.webhook.processed', {
+
+        logInfo("payment.webhook.processed", {
           paymentIntentId: paymentIntent.id,
           orderId,
         });
       } catch (err) {
-        logError("payment.webhook.process_error", {
-          paymentIntentId: paymentIntent.id,
-          orderId,
-        }, err as Error);
+        logError(
+          "payment.webhook.process_error",
+          {
+            paymentIntentId: paymentIntent.id,
+            orderId,
+          },
+          err as Error,
+        );
       }
     } else {
       logWarn("payment.webhook.no_order_id", {
@@ -497,7 +579,10 @@ export const stripeWebhook = async (req: Request, res: Response) => {
   res.json({ received: true });
 };
 
-export const markOrderPaid = async (req: AuthenticatedRequest, res: Response) => {
+export const markOrderPaid = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("payment.mark_paid.unauthorized", {
@@ -524,7 +609,9 @@ export const markOrderPaid = async (req: AuthenticatedRequest, res: Response) =>
         hasPaymentMethod: !!paymentMethod,
         hasTransactionId: !!transactionId,
       });
-      return res.status(400).json({ message: "Payment method and transaction ID are required" });
+      return res
+        .status(400)
+        .json({ message: "Payment method and transaction ID are required" });
     }
 
     // Call the service to update the order's payment status and status
@@ -552,15 +639,22 @@ export const markOrderPaid = async (req: AuthenticatedRequest, res: Response) =>
 
     res.json(updatedOrder);
   } catch (error) {
-    logError("payment.mark_paid.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, error as Error);
+    logError(
+      "payment.mark_paid.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      error as Error,
+    );
     res.status(500).json({ message: "Something went wrong" });
   }
 };
 
-export const markOrderAsPaid = async (req: AuthenticatedRequest, res: Response) => {
+export const markOrderAsPaid = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("payment.mark_as_paid.unauthorized", {
@@ -587,12 +681,14 @@ export const markOrderAsPaid = async (req: AuthenticatedRequest, res: Response) 
         hasPaymentMethod: !!paymentMethod,
         hasTransactionId: !!transactionId,
       });
-      return res.status(400).json({ message: "Payment method and transaction ID are required" });
+      return res
+        .status(400)
+        .json({ message: "Payment method and transaction ID are required" });
     }
 
     const updatedOrder = await OrdersService.processOrderPayment(id, {
       transactionId,
-      method: paymentMethod || 'Stripe'
+      method: paymentMethod || "Stripe",
     });
 
     if (!updatedOrder) {
@@ -614,15 +710,22 @@ export const markOrderAsPaid = async (req: AuthenticatedRequest, res: Response) 
 
     res.json(updatedOrder);
   } catch (err) {
-    logError("payment.mark_as_paid.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, err as Error);
+    logError(
+      "payment.mark_as_paid.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      err as Error,
+    );
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response) => {
+export const updateOrderStatus = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
   try {
     if (!req.user) {
       logWarn("order.update_status.unauthorized", {
@@ -631,17 +734,17 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
       });
       return res.status(401).json({ message: "Unauthorized" });
     }
-    
+
     const { status } = req.body;
     const orderId = req.params.id;
-    
+
     logInfo("order.update_status.start", {
       orderId,
       userId: req.user.id,
       role: req.user.role,
       newStatus: status,
     });
-    
+
     if (!status) {
       logWarn("order.update_status.missing_status", {
         orderId,
@@ -649,9 +752,9 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
       });
       return res.status(400).json({ message: "Status is required" });
     }
-    
+
     // For restaurant admin, verify they own this order's restaurant
-    if (req.user.role === 'restaurantAdmin') {
+    if (req.user.role === "restaurantAdmin") {
       const order = await OrdersService.getOrderById(orderId);
       if (!order) {
         logWarn("order.update_status.not_found", {
@@ -661,21 +764,26 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
         });
         return res.status(404).json({ message: "Order not found" });
       }
-      
+
       // Check if admin has restaurantId and if order belongs to admin's restaurant
-      if (!req.user.restaurantId || order.restaurantId?.toString() !== req.user.restaurantId) {
+      if (
+        !req.user.restaurantId ||
+        order.restaurantId?.toString() !== req.user.restaurantId
+      ) {
         logWarn("order.update_status.unauthorized_restaurant", {
           orderId,
           userId: req.user.id,
           userRestaurantId: req.user.restaurantId,
           orderRestaurantId: order.restaurantId?.toString(),
         });
-        return res.status(403).json({ message: "Not authorized to update this order" });
+        return res
+          .status(403)
+          .json({ message: "Not authorized to update this order" });
       }
     }
-    
+
     const updatedOrder = await OrdersService.updateOrderStatus(orderId, status);
-    
+
     if (!updatedOrder) {
       logWarn("order.update_status.update_failed", {
         orderId,
@@ -683,7 +791,7 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
       });
       return res.status(404).json({ message: "Order not found" });
     }
-    
+
     logInfo("order.update_status.success", {
       orderId: updatedOrder._id.toString(),
       userId: req.user.id,
@@ -692,10 +800,14 @@ export const updateOrderStatus = async (req: AuthenticatedRequest, res: Response
     });
     res.json(updatedOrder);
   } catch (err) {
-    logError("order.update_status.error", {
-      orderId: req.params.id,
-      userId: req.user?.id,
-    }, err as Error);
+    logError(
+      "order.update_status.error",
+      {
+        orderId: req.params.id,
+        userId: req.user?.id,
+      },
+      err as Error,
+    );
     res.status(500).json({ message: "Something went wrong" });
   }
 };

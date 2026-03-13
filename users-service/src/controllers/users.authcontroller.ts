@@ -1,28 +1,38 @@
-import { Request, Response } from 'express';
-import UserModel, { IUser } from '../models/users.model';
-import jwt from 'jsonwebtoken';
-import dotenv from 'dotenv';
+import { Request, Response } from "express";
+import { Types } from "mongoose";
+import UserModel from "../models/users.model";
+import jwt from "jsonwebtoken";
+import dotenv from "dotenv";
 
 dotenv.config();
-const JWT_SECRET = process.env.JWT_SECRET || 'supersecret';
+const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
+
+// Sanitize user-controlled strings before logging to prevent log injection
+const sanitizeForLog = (value: unknown): string =>
+  String(value).replaceAll("\r", " ").replaceAll("\n", " ");
 
 // REGISTER
 export const registerUser = async (req: Request, res: Response) => {
   try {
-    const {
-      name,
-      email,
-      password,
-      role,
-      phone,
-      address,
-    } = req.body;
+    const { name, email, password, role, phone, address } = req.body;
 
-    console.log('Register request received with data:', req.body);
+    if (
+      typeof name !== "string" ||
+      typeof email !== "string" ||
+      typeof password !== "string"
+    ) {
+      return res.status(400).json({ message: "Invalid registration input" });
+    }
+
+    console.log("Register request received:", {
+      name: sanitizeForLog(name),
+      email: sanitizeForLog(email),
+      role: sanitizeForLog(role),
+    });
 
     const existingUser = await UserModel.findOne({ email });
     if (existingUser) {
-      return res.status(409).json({ message: 'User already exists' });
+      return res.status(409).json({ message: "User already exists" });
     }
 
     const newUser = new UserModel({
@@ -35,11 +45,11 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     await newUser.save();
-    console.log('New user registered with ID:', newUser._id.toString());
-    res.status(201).json({ message: 'User registered successfully' });
+    console.log("New user registered with ID:", newUser._id.toString());
+    res.status(201).json({ message: "User registered successfully" });
   } catch (err) {
-    console.error('Register error:', err);
-    res.status(500).json({ message: 'Registration failed', error: err });
+    console.error("Register error:", err);
+    res.status(500).json({ message: "Registration failed", error: err });
   }
 };
 
@@ -48,19 +58,24 @@ export const loginUser = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
+    if (typeof email !== "string" || typeof password !== "string") {
+      return res.status(400).json({ message: "Invalid credentials format" });
+    }
+
     const user = await UserModel.findOne({ email });
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await user.comparePassword(password);
-    if (!isMatch) return res.status(401).json({ message: 'Invalid credentials' });
+    if (!isMatch)
+      return res.status(401).json({ message: "Invalid credentials" });
 
     const token = jwt.sign(
       { id: user._id.toString(), role: user.role },
       JWT_SECRET,
-      { expiresIn: '30d' }
+      { expiresIn: "30d" },
     );
 
-    console.log('User logged in with ID:', user._id.toString()); // Debug: Track login
+    console.log("User logged in with ID:", user._id.toString()); // Debug: Track login
 
     const response = {
       token,
@@ -69,27 +84,30 @@ export const loginUser = async (req: Request, res: Response) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        isApproved: user.isApproved
-      }
+        isApproved: user.isApproved,
+      },
     };
 
-    console.log(`Response: ${JSON.stringify(response)}`);
+    console.log("User response:", {
+      id: response.user.id,
+      name: sanitizeForLog(response.user.name),
+      email: sanitizeForLog(response.user.email),
+      role: sanitizeForLog(response.user.role),
+    });
     res.json(response);
   } catch (err) {
-    console.error('Login error:', err);
-    res.status(500).json({ message: 'Login failed', error: err });
+    console.error("Login error:", err);
+    res.status(500).json({ message: "Login failed", error: err });
   }
 };
-
-
 
 // GET ALL USERS – Admin Only
 export const getAllUsers = async (req: Request, res: Response) => {
   try {
-    const users = await UserModel.find().select('-password');
+    const users = await UserModel.find().select("-password");
     res.json(users);
   } catch (err) {
-    res.status(500).json({ message: 'Failed to fetch users', error: err });
+    res.status(500).json({ message: "Failed to fetch users", error: err });
   }
 };
 
@@ -97,60 +115,86 @@ export const getAllUsers = async (req: Request, res: Response) => {
 export const getMyProfile = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).user?.id;
-    const user = await UserModel.findById(userId).select('-password');
+    const user = await UserModel.findById(userId).select("-password");
 
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json(user);
   } catch (err) {
-    console.error('Get /me error:', err);
-    res.status(500).json({ message: 'Failed to fetch user', error: err });
+    console.error("Get /me error:", err);
+    res.status(500).json({ message: "Failed to fetch user", error: err });
   }
 };
 
 // UPDATE USER BY ID – Admin Only
 export const updateUserById = async (req: Request, res: Response) => {
   try {
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    // Whitelist updatable fields to prevent operator injection via req.body
+    const { name, email, role, phone, address, isApproved } = req.body;
+    const allowedUpdate: Record<string, unknown> = {};
+    if (name !== undefined) allowedUpdate.name = String(name);
+    if (email !== undefined) allowedUpdate.email = String(email);
+    if (role !== undefined) allowedUpdate.role = String(role);
+    if (phone !== undefined) allowedUpdate.phone = String(phone);
+    if (address !== undefined) allowedUpdate.address = address;
+    if (isApproved !== undefined)
+      allowedUpdate.isApproved = Boolean(isApproved);
+
     const updatedUser = await UserModel.findByIdAndUpdate(
-      req.params.id,
-      req.body,
-      { new: true }
-    ).select('-password');
+      id,
+      { $set: allowedUpdate },
+      { new: true },
+    ).select("-password");
 
-    if (!updatedUser) return res.status(404).json({ message: 'User not found' });
+    if (!updatedUser)
+      return res.status(404).json({ message: "User not found" });
 
-    res.json({ message: 'User updated successfully', user: updatedUser });
+    res.json({ message: "User updated successfully", user: updatedUser });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to update user', error: err });
+    res.status(500).json({ message: "Failed to update user", error: err });
   }
 };
 
 // DELETE USER BY ID – Admin Only
 export const deleteUserById = async (req: Request, res: Response) => {
   try {
-    const deletedUser = await UserModel.findByIdAndDelete(req.params.id);
-    if (!deletedUser) return res.status(404).json({ message: 'User not found' });
+    const { id } = req.params;
+    if (!Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
 
-    res.json({ message: 'User deleted successfully' });
+    const deletedUser = await UserModel.findByIdAndDelete(id);
+    if (!deletedUser)
+      return res.status(404).json({ message: "User not found" });
+
+    res.json({ message: "User deleted successfully" });
   } catch (err) {
-    res.status(500).json({ message: 'Failed to delete user', error: err });
+    res.status(500).json({ message: "Failed to delete user", error: err });
   }
 };
-
 
 // Fetch user by ID
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
-    const user = await UserModel.findById(userId); //error:Cannot find name 'User'. Did you mean 'user'?ts(2552)
+    if (!Types.ObjectId.isValid(userId)) {
+      return res.status(400).json({ message: "Invalid user ID" });
+    }
+
+    const user = await UserModel.findById(userId);
 
     if (!user) {
-      return res.status(404).json({ message: 'User not found' });
+      return res.status(404).json({ message: "User not found" });
     }
 
     res.json(user);
   } catch (err) {
     console.error("Error fetching user:", err);
-    res.status(500).json({ message: 'Error fetching user data' });
+    res.status(500).json({ message: "Error fetching user data" });
   }
 };
