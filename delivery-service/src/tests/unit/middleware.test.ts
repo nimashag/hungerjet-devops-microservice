@@ -155,7 +155,7 @@ describe("delivery middleware", () => {
       const res = mockRes();
       const next = jest.fn();
 
-      requestLogger(req, res as any, next);
+      requestLogger(req, res, next);
       res.statusCode = 200;
       res._listeners.finish();
 
@@ -182,7 +182,7 @@ describe("delivery middleware", () => {
       const res = mockRes();
       const next = jest.fn();
 
-      requestLogger(req, res as any, next);
+      requestLogger(req, res, next);
       res.statusCode = 500;
       res._listeners.finish();
 
