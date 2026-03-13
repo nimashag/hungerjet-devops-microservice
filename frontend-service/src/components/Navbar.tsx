@@ -6,8 +6,8 @@ import logoicon1 from "../assets/Logo.png";
 import searchicon from "../assets/search_icon.png";
 import usericon from "../assets/user_icon.png";
 import carticon from "../assets/carticon.png";
-import { useCart } from '../contexts/CartContext';
-import { clearSessionId } from '../utils/sessionManager';
+import { useCart } from "../contexts/CartContext";
+import { clearSessionId } from "../utils/sessionManager";
 
 const Navbar: React.FC = () => {
   const [isLogged, setIsLogged] = useState<boolean>(false);
@@ -21,18 +21,18 @@ const Navbar: React.FC = () => {
     setIsLogged(!!token);
 
     const updateCartCount = () => {
-    const cart = JSON.parse(localStorage.getItem("cart") || "[]");
-    setCartCount(cart.length);
-  };
+      const cart = JSON.parse(localStorage.getItem("cart") || "[]");
+      setCartCount(cart.length);
+    };
 
-  updateCartCount();
+    updateCartCount();
 
-  // Listen to storage changes (in case items added on a different page/tab)
-  window.addEventListener("storage", updateCartCount);
+    // Listen to storage changes (in case items added on a different page/tab)
+    window.addEventListener("storage", updateCartCount);
 
-  return () => {
-    window.removeEventListener("storage", updateCartCount);
-  };
+    return () => {
+      window.removeEventListener("storage", updateCartCount);
+    };
   }, []);
 
   const toggleMobileMenu = () => {
@@ -52,9 +52,7 @@ const Navbar: React.FC = () => {
   };
 
   return (
-    <div className='px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw] flex items-center justify-between font-medium'>
-    
-      
+    <div className="px-4 sm:px-[5vw] md:px-[7vw] lg:px-[9vw] flex items-center justify-between font-medium">
       {/* Logo */}
       <motion.img
         src={logoicon1}
@@ -91,7 +89,6 @@ const Navbar: React.FC = () => {
 
       {/* Right Icons */}
       <div className="flex items-center gap-6">
-
         <motion.img
           src={searchicon}
           className="w-5 cursor-pointer"
@@ -117,14 +114,28 @@ const Navbar: React.FC = () => {
             >
               {!isLogged ? (
                 <div className="flex flex-col gap-2">
-                  <Link to="/register/customer" className="hover:text-black">Signup</Link>
-                  <Link to="/login/customer" className="hover:text-black">Login</Link>
+                  <Link to="/register/customer" className="hover:text-black">
+                    Signup
+                  </Link>
+                  <Link to="/login/customer" className="hover:text-black">
+                    Login
+                  </Link>
                 </div>
               ) : (
                 <div className="flex flex-col gap-2">
-                  <Link to="/profile" className="hover:text-black">My Profile</Link>
-                  <Link to="/my-orders" className="hover:text-black">My Orders</Link>
-                  <p className="cursor-pointer hover:text-black" onClick={logout}>Logout</p>
+                  <Link to="/profile" className="hover:text-black">
+                    My Profile
+                  </Link>
+                  <Link to="/my-orders" className="hover:text-black">
+                    My Orders
+                  </Link>
+                  <button
+                    type="button"
+                    className="cursor-pointer hover:text-black text-left"
+                    onClick={logout}
+                  >
+                    Logout
+                  </button>
                 </div>
               )}
             </motion.div>
@@ -187,7 +198,6 @@ const Navbar: React.FC = () => {
           </ul>
         </div>
       )}
-
     </div>
   );
 };

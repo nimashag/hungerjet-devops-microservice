@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
-import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard,
   Users,
@@ -7,7 +7,6 @@ import {
   Truck,
   BarChart2,
   Bell,
-  Settings,
   LogOut,
   Menu,
   X,
@@ -15,18 +14,18 @@ import {
   Search,
   Moon,
   Sun,
-} from 'lucide-react';
-import { clearSessionId } from '../../../utils/sessionManager';
+} from "lucide-react";
+import { clearSessionId } from "../../../utils/sessionManager";
 
 const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(true);
   const [isMobile, setIsMobile] = useState(false);
   const [isDark, setIsDark] = useState(() => {
-    const stored = localStorage.getItem('theme');
-    return stored === 'dark';
+    const stored = localStorage.getItem("theme");
+    return stored === "dark";
   });
 
-  const [user, setUser] = useState({ firstName: 'Admin', lastName: 'User' });
+  const [user] = useState({ firstName: "Admin", lastName: "User" });
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,11 +33,11 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
   // Apply theme from localStorage
   useEffect(() => {
     if (isDark) {
-      document.documentElement.classList.add('dark');
-      localStorage.setItem('theme', 'dark');
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
     } else {
-      document.documentElement.classList.remove('dark');
-      localStorage.setItem('theme', 'light');
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
     }
   }, [isDark]);
 
@@ -50,23 +49,23 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       setIsSidebarOpen(!nowMobile);
     };
     handleResize();
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   const handleLogout = () => {
     clearSessionId(); // Clear session ID on logout
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    navigate('/login/admin');
+    navigate("/login/admin");
   };
 
   const navigation = [
-    { name: 'Dashboard', href: '/admin-dashboard', icon: LayoutDashboard },
-    { name: 'Customers', href: '/admin/customers', icon: Users },
-    { name: 'Restaurants', href: '/admin/restaurants', icon: UtensilsCrossed },
-    { name: 'Drivers', href: '/admin/drivers', icon: Truck },
-    { name: 'Analytics', href: '/admin/analytics', icon: BarChart2 },
+    { name: "Dashboard", href: "/admin-dashboard", icon: LayoutDashboard },
+    { name: "Customers", href: "/admin/customers", icon: Users },
+    { name: "Restaurants", href: "/admin/restaurants", icon: UtensilsCrossed },
+    { name: "Drivers", href: "/admin/drivers", icon: Truck },
+    { name: "Analytics", href: "/admin/analytics", icon: BarChart2 },
     // name: 'Approvals', href: '/admin/approvals', icon: Bell },
     //{ name: 'Settings', href: '/admin/settings', icon: Settings },
   ];
@@ -76,15 +75,21 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       {/* Sidebar */}
       <aside
         className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-neutral-800 border-r border-gray-200 dark:border-neutral-700 transform transition-transform duration-300 ${
-          isSidebarOpen ? 'translate-x-0' : '-translate-x-full'
+          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
         } md:translate-x-0`}
       >
         <div className="h-full flex flex-col">
           <div className="h-16 flex items-center justify-between px-4 border-b border-gray-200 dark:border-neutral-700">
-            <Link to="/" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+            <Link
+              to="/"
+              className="text-xl font-bold text-indigo-600 dark:text-indigo-400"
+            >
               HungerJet Admin
             </Link>
-            <button onClick={() => setIsSidebarOpen(false)} className="md:hidden text-gray-500 dark:text-gray-300">
+            <button
+              onClick={() => setIsSidebarOpen(false)}
+              className="md:hidden text-gray-500 dark:text-gray-300"
+            >
               <X size={20} />
             </button>
           </div>
@@ -95,8 +100,8 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
                 to={item.href}
                 className={`flex items-center px-3 py-2 rounded-md text-sm font-medium transition ${
                   location.pathname === item.href
-                    ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white'
-                    : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700'
+                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white"
+                    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
                 }`}
               >
                 <item.icon className="h-5 w-5 mr-3" />
@@ -107,10 +112,18 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
           <div className="p-4 border-t border-gray-200 dark:border-neutral-700">
             <div className="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
               <div>
-                <div className="font-semibold">{user.firstName} {user.lastName}</div>
-                <div className="text-xs text-gray-500 dark:text-gray-400">Admin</div>
+                <div className="font-semibold">
+                  {user.firstName} {user.lastName}
+                </div>
+                <div className="text-xs text-gray-500 dark:text-gray-400">
+                  Admin
+                </div>
               </div>
-              <button onClick={handleLogout} title="Logout" className="hover:text-red-600 dark:hover:text-red-400">
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                className="hover:text-red-600 dark:hover:text-red-400"
+              >
                 <LogOut size={18} />
               </button>
             </div>
@@ -119,7 +132,9 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
       </aside>
 
       {/* Main Content */}
-      <div className={`transition-all duration-300 ${isSidebarOpen ? 'md:ml-64' : 'md:ml-0'} pt-16`}>
+      <div
+        className={`transition-all duration-300 ${isSidebarOpen ? "md:ml-64" : "md:ml-0"} pt-16`}
+      >
         {/* Top Nav */}
         <header className="fixed top-0 left-0 right-0 md:left-64 z-40 h-16 bg-white dark:bg-neutral-800 border-b border-gray-200 dark:border-neutral-700 px-6 flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -145,7 +160,11 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
               title="Toggle Theme"
               className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-neutral-700"
             >
-              {isDark ? <Sun size={18} className="text-yellow-400" /> : <Moon size={18} className="text-gray-600" />}
+              {isDark ? (
+                <Sun size={18} className="text-yellow-400" />
+              ) : (
+                <Moon size={18} className="text-gray-600" />
+              )}
             </button>
             <Bell size={20} className="text-gray-500 dark:text-gray-300" />
             <button className="flex items-center text-sm text-gray-700 dark:text-gray-300">
@@ -161,10 +180,12 @@ const AdminLayout = ({ children }: { children: React.ReactNode }) => {
 
       {/* Overlay for mobile */}
       {isMobile && isSidebarOpen && (
-        <div
+        <button
+          type="button"
+          aria-label="Close sidebar overlay"
           className="fixed inset-0 bg-black/30 z-30 md:hidden"
           onClick={() => setIsSidebarOpen(false)}
-        ></div>
+        ></button>
       )}
     </div>
   );
