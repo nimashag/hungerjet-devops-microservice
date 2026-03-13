@@ -61,24 +61,34 @@ const validCredential = "alpha-credential-123";
 const alternateCredential = "beta-credential-456";
 const mismatchedCredential = "gamma-credential-789";
 
+const createFindOneChain = <T>(result: T) => {
+  const equals = jest.fn().mockReturnValue(result);
+  const where = jest.fn().mockReturnValue({ equals });
+  return { where, equals };
+};
+
 const mockRegisterFindOneResult = (value: unknown) => {
   const lean = jest.fn().mockResolvedValueOnce(value);
   const select = jest.fn().mockReturnValue({ lean });
-  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ select });
+  const chain = createFindOneChain({ select });
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where: chain.where });
 };
 
 const mockRegisterFindOneError = (error: Error) => {
   const lean = jest.fn().mockRejectedValueOnce(error);
   const select = jest.fn().mockReturnValue({ lean });
-  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ select });
+  const chain = createFindOneChain({ select });
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where: chain.where });
 };
 
 const mockLoginFindOneResult = (value: unknown) => {
-  (UserModel.findOne as jest.Mock).mockResolvedValueOnce(value);
+  const chain = createFindOneChain(Promise.resolve(value));
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where: chain.where });
 };
 
 const mockLoginFindOneError = (error: Error) => {
-  (UserModel.findOne as jest.Mock).mockRejectedValueOnce(error);
+  const chain = createFindOneChain(Promise.reject(error));
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where: chain.where });
 };
 
 // ─── registerUser ─────────────────────────────────────────────────────────────

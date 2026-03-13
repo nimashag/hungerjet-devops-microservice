@@ -54,7 +54,7 @@ const sanitizeEmailValue = (email: string): string | null => {
 const findUserByEmail = async (email: string) => {
   const safeEmail = sanitizeEmailValue(email);
   if (!safeEmail) {
-    return null;
+    return undefined;
   }
 
   return UserModel.findOne().where("email").equals(safeEmail);
@@ -63,7 +63,7 @@ const findUserByEmail = async (email: string) => {
 const findExistingUserIdByEmail = async (email: string) => {
   const safeEmail = sanitizeEmailValue(email);
   if (!safeEmail) {
-    return null;
+    return undefined;
   }
 
   return UserModel.findOne()
@@ -102,7 +102,7 @@ export const registerUser = async (req: Request, res: Response) => {
     });
 
     const existingUser = await findExistingUserIdByEmail(normalizedEmail);
-    if (existingUser === null) {
+    if (existingUser === undefined) {
       return res.status(400).json({ message: "Invalid registration input" });
     }
 
@@ -139,7 +139,7 @@ export const loginUser = async (req: Request, res: Response) => {
     }
 
     const user = await findUserByEmail(normalizedEmail);
-    if (user === null) {
+    if (user === undefined) {
       return res.status(400).json({ message: "Invalid credentials format" });
     }
 
