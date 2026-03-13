@@ -56,7 +56,7 @@ import {
   getAssignedOrders,
   getMyDeliveries,
   updateDeliveryStatus,
-} from "../delivery.controller";
+} from "../../controllers/delivery.controller";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const mockRes = (): Response => {

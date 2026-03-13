@@ -39,7 +39,7 @@ import {
   updateUserById,
   deleteUserById,
   getUserById,
-} from "../users.authcontroller";
+} from "../../controllers/users.authcontroller";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const mockRes = (): Response => {

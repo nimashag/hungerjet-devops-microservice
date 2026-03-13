@@ -1,5 +1,5 @@
 // ─── Mocks (hoisted before imports) ──────────────────────────────────────────
-jest.mock("../utils/logger", () => ({
+jest.mock("../../utils/logger", () => ({
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
@@ -10,8 +10,8 @@ jest.mock("jsonwebtoken");
 // ─── Imports ─────────────────────────────────────────────────────────────────
 import { Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { authenticate, AuthenticatedRequest } from "./auth";
-import { authorizeRoles } from "./authorize";
+import { authenticate, AuthenticatedRequest } from "../../middlewares/auth";
+import { authorizeRoles } from "../../middlewares/authorize";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const mockRes = (): Response => {

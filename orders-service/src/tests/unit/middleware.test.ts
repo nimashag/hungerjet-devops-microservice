@@ -11,14 +11,14 @@ jest.mock("../../utils/logger", () => ({
 }));
 
 import jwt from "jsonwebtoken";
-import { authenticate } from "../auth";
-import { authorizeRoles } from "../authorize";
-import { requestLogger } from "../requestLogger";
+import { authenticate } from "../../middlewares/auth";
+import { authorizeRoles } from "../../middlewares/authorize";
+import { requestLogger } from "../../middlewares/requestLogger";
 import { logInfo, logWarn, requestContext } from "../../utils/logger";
 
 const mockRes = () => {
-  const listeners: Record<string, () => void> = {};
   const headers: Record<string, string> = {};
+  const listeners: Record<string, () => void> = {};
   const res: any = {
     statusCode: 200,
     status: jest.fn().mockReturnThis(),
@@ -26,6 +26,7 @@ const mockRes = () => {
     setHeader: jest.fn((key: string, value: string) => {
       headers[key] = value;
     }),
+    getHeader: jest.fn((key: string) => headers[key]),
     on: jest.fn((event: string, cb: () => void) => {
       listeners[event] = cb;
     }),
@@ -34,14 +35,14 @@ const mockRes = () => {
   return res;
 };
 
-describe("delivery middleware", () => {
+describe("orders middleware", () => {
   beforeEach(() => {
     jest.clearAllMocks();
   });
 
   describe("authenticate", () => {
     it("returns 401 if auth header is missing", () => {
-      const req: any = { headers: {}, path: "/api/delivery", method: "GET" };
+      const req: any = { headers: {}, path: "/api/orders", method: "GET" };
       const res = mockRes();
       const next = jest.fn();
 
@@ -51,14 +52,27 @@ describe("delivery middleware", () => {
       expect(next).not.toHaveBeenCalled();
     });
 
+    it("does not log missing token for auth endpoints", () => {
+      const req: any = { headers: {}, path: "/api/auth/login", method: "POST" };
+      const res = mockRes();
+      const next = jest.fn();
+
+      authenticate(req, res, next);
+
+      expect(logWarn).not.toHaveBeenCalledWith(
+        "auth.missing_token",
+        expect.anything(),
+      );
+    });
+
     it("attaches user and calls next for valid token", () => {
       (jwt.verify as jest.Mock).mockReturnValueOnce({
         id: "u1",
-        role: "deliveryPersonnel",
+        role: "customer",
       });
       const req: any = {
         headers: { authorization: "Bearer valid-token" },
-        path: "/api/delivery",
+        path: "/api/orders",
         method: "GET",
       };
       const res = mockRes();
@@ -66,7 +80,7 @@ describe("delivery middleware", () => {
 
       authenticate(req, res, next);
 
-      expect(req.user).toEqual({ id: "u1", role: "deliveryPersonnel" });
+      expect(req.user).toEqual({ id: "u1", role: "customer" });
       expect(next).toHaveBeenCalledTimes(1);
     });
 
@@ -76,7 +90,7 @@ describe("delivery middleware", () => {
       });
       const req: any = {
         headers: { authorization: "Bearer invalid" },
-        path: "/api/delivery",
+        path: "/api/orders",
         method: "GET",
       };
       const res = mockRes();
@@ -91,7 +105,7 @@ describe("delivery middleware", () => {
 
   describe("authorizeRoles", () => {
     it("returns 401 when req.user is missing", () => {
-      const req: any = { path: "/api/delivery", method: "GET" };
+      const req: any = { path: "/api/orders", method: "GET" };
       const res = mockRes();
       const next = jest.fn();
 
@@ -104,13 +118,13 @@ describe("delivery middleware", () => {
     it("returns 403 for wrong role", () => {
       const req: any = {
         user: { id: "u1", role: "customer" },
-        path: "/api/delivery",
+        path: "/api/orders",
         method: "GET",
       };
       const res = mockRes();
       const next = jest.fn();
 
-      authorizeRoles("deliveryPersonnel")(req, res, next);
+      authorizeRoles("admin")(req, res, next);
 
       expect(res.status).toHaveBeenCalledWith(403);
       expect(next).not.toHaveBeenCalled();
@@ -118,14 +132,14 @@ describe("delivery middleware", () => {
 
     it("calls next for allowed role", () => {
       const req: any = {
-        user: { id: "u1", role: "deliveryPersonnel" },
-        path: "/api/delivery",
+        user: { id: "u1", role: "admin" },
+        path: "/api/orders",
         method: "GET",
       };
       const res = mockRes();
       const next = jest.fn();
 
-      authorizeRoles("deliveryPersonnel", "admin")(req, res, next);
+      authorizeRoles("admin", "restaurantAdmin")(req, res, next);
 
       expect(next).toHaveBeenCalledTimes(1);
       expect(logInfo).toHaveBeenCalledWith(
@@ -139,10 +153,10 @@ describe("delivery middleware", () => {
     it("sets request/session headers and logs success on finish", () => {
       const req: any = {
         method: "GET",
-        originalUrl: "/api/delivery",
-        path: "/api/delivery",
+        originalUrl: "/api/orders",
+        path: "/api/orders",
         query: { page: "1" },
-        body: { status: "Assigned" },
+        body: { status: "Pending" },
         ip: "127.0.0.1",
         user: { id: "u1" },
         get: jest.fn((key: string) => {
@@ -172,8 +186,8 @@ describe("delivery middleware", () => {
     it("logs error completion for 4xx/5xx response", () => {
       const req: any = {
         method: "POST",
-        originalUrl: "/api/delivery",
-        path: "/api/delivery",
+        originalUrl: "/api/orders",
+        path: "/api/orders",
         query: {},
         body: {},
         ip: "127.0.0.1",

@@ -14,6 +14,7 @@ jest.mock("../../services/orders.service", () => ({
   getOrdersByUserId: jest.fn(),
   getOrdersByRestaurantId: jest.fn(),
   updateOrderStatus: jest.fn(),
+  processOrderPayment: jest.fn(),
 }));
 
 jest.mock("../../api/restaurant.api", () => ({
@@ -41,7 +42,14 @@ import {
   getCurrentUserOrders,
   updateOrderStatus,
   getByRestaurantId,
-} from "../orders.controller";
+  updateDeliveryAddress,
+  updateSpecialInstructions,
+  createPaymentIntent,
+  stripeWebhook,
+  markOrderPaid,
+  markOrderAsPaid,
+} from "../../controllers/orders.controller";
+import stripe from "../../utils/stripe";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const mockRes = (): Response => {
@@ -402,5 +410,226 @@ describe("updateOrderStatus", () => {
     const res = mockRes();
     await updateOrderStatus(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+describe("updateDeliveryAddress", () => {
+  it("returns 401 when there is no authenticated user", async () => {
+    const req = mockReq(null, { deliveryAddress: "Colombo" }, { id: "o1" });
+    const res = mockRes();
+    await updateDeliveryAddress(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("returns 400 when deliveryAddress is missing", async () => {
+    const req = mockReq({ id: "u1" }, {}, { id: "o1" });
+    const res = mockRes();
+    await updateDeliveryAddress(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 404 when order not found", async () => {
+    (OrdersService.updateOrder as jest.Mock).mockResolvedValueOnce(null);
+    const req = mockReq(
+      { id: "u1" },
+      { deliveryAddress: "Kandy" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateDeliveryAddress(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it("returns updated order on success", async () => {
+    const updated = { _id: "o1", deliveryAddress: "Kandy" };
+    (OrdersService.updateOrder as jest.Mock).mockResolvedValueOnce(updated);
+    const req = mockReq(
+      { id: "u1" },
+      { deliveryAddress: "Kandy" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateDeliveryAddress(req, res);
+    expect(res.json).toHaveBeenCalledWith(updated);
+  });
+});
+
+describe("updateSpecialInstructions", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const req = mockReq(
+      null,
+      { specialInstructions: "No onions" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateSpecialInstructions(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("returns 400 when specialInstructions is undefined", async () => {
+    const req = mockReq({ id: "u1" }, {}, { id: "o1" });
+    const res = mockRes();
+    await updateSpecialInstructions(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 404 when order not found", async () => {
+    (OrdersService.updateOrder as jest.Mock).mockResolvedValueOnce(null);
+    const req = mockReq(
+      { id: "u1" },
+      { specialInstructions: "No onions" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateSpecialInstructions(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it("returns updated order on success", async () => {
+    const updated = { _id: "o1", specialInstructions: "No onions" };
+    (OrdersService.updateOrder as jest.Mock).mockResolvedValueOnce(updated);
+    const req = mockReq(
+      { id: "u1" },
+      { specialInstructions: "No onions" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateSpecialInstructions(req, res);
+    expect(res.json).toHaveBeenCalledWith(updated);
+  });
+});
+
+describe("createPaymentIntent", () => {
+  it("returns 401 when unauthenticated", async () => {
+    const req = mockReq(null, { totalAmount: 10, items: [] });
+    const res = mockRes();
+    await createPaymentIntent(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("returns 400 for invalid totalAmount", async () => {
+    const req = mockReq({ id: "u1" }, { totalAmount: 0, items: [] });
+    const res = mockRes();
+    await createPaymentIntent(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns client secret on success", async () => {
+    (stripe.paymentIntents.create as jest.Mock).mockResolvedValueOnce({
+      id: "pi_1",
+      amount: 1399,
+      currency: "usd",
+      client_secret: "secret_1",
+    });
+    const req = mockReq(
+      { id: "u1" },
+      {
+        totalAmount: 10,
+        items: [{ name: "Burger", price: 10 }],
+      },
+    );
+    const res = mockRes();
+    await createPaymentIntent(req, res);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ clientSecret: "secret_1" }),
+    );
+  });
+});
+
+describe("stripeWebhook", () => {
+  it("returns 400 when signature verification fails", async () => {
+    (stripe.webhooks.constructEvent as jest.Mock).mockImplementationOnce(() => {
+      throw new Error("invalid signature");
+    });
+    const req: any = {
+      headers: { "stripe-signature": "sig" },
+      body: {},
+      get: jest.fn(() => "application/json"),
+    };
+    const res = mockRes() as any;
+    res.send = jest.fn().mockReturnValue(res);
+
+    await stripeWebhook(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("handles succeeded payment intent and returns received true", async () => {
+    (stripe.webhooks.constructEvent as jest.Mock).mockReturnValueOnce({
+      id: "evt_1",
+      type: "payment_intent.succeeded",
+      data: {
+        object: { id: "pi_1", amount: 1000, metadata: { orderId: "o1" } },
+      },
+    });
+    (OrdersService.processOrderPayment as jest.Mock).mockResolvedValueOnce({
+      _id: "o1",
+    });
+
+    const req: any = {
+      headers: { "stripe-signature": "sig" },
+      body: {},
+      get: jest.fn(() => "application/json"),
+    };
+    const res = mockRes() as any;
+
+    await stripeWebhook(req, res);
+    expect(OrdersService.processOrderPayment).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ received: true });
+  });
+});
+
+describe("markOrderPaid and markOrderAsPaid", () => {
+  it("markOrderPaid returns 400 when fields are missing", async () => {
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("markOrderPaid returns updated order on success", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockResolvedValueOnce({
+      _id: "o1",
+      status: "Confirmed",
+      paymentStatus: "Paid",
+    });
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_1" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderPaid(req, res);
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  it("markOrderAsPaid returns 400 when fields are missing", async () => {
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderAsPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("markOrderAsPaid returns updated order on success", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockResolvedValueOnce({
+      _id: "o1",
+      status: "Confirmed",
+      paymentStatus: "Paid",
+    });
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_2" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderAsPaid(req, res);
+    expect(res.json).toHaveBeenCalled();
   });
 });

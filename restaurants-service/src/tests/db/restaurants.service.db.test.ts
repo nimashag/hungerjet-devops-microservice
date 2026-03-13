@@ -12,11 +12,11 @@ import {
   toggleAvailability,
   updateMenuItem,
   updateRestaurant,
-} from "./restaurants.service";
-import { Restaurant } from "../models/restaurant.model";
-import { MenuItem } from "../models/menuItem.model";
+} from "../../services/restaurants.service";
+import { Restaurant } from "../../models/restaurant.model";
+import { MenuItem } from "../../models/menuItem.model";
 
-jest.mock("../models/restaurant.model", () => ({
+jest.mock("../../models/restaurant.model", () => ({
   Restaurant: {
     create: jest.fn(),
     find: jest.fn(),
@@ -26,7 +26,7 @@ jest.mock("../models/restaurant.model", () => ({
   },
 }));
 
-jest.mock("../models/menuItem.model", () => ({
+jest.mock("../../models/menuItem.model", () => ({
   MenuItem: {
     create: jest.fn(),
     find: jest.fn(),
@@ -35,7 +35,7 @@ jest.mock("../models/menuItem.model", () => ({
   },
 }));
 
-jest.mock("../utils/logger", () => ({
+jest.mock("../../utils/logger", () => ({
   logError: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),

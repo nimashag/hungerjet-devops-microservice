@@ -14,8 +14,6 @@ module.exports = {
         '!src/models/**',
         '!src/routes/**',
         '!src/utils/**',
-        '!src/api/**',
-        '!src/controllers/**',
         '!src/services/email.service.ts',
         '!src/services/sms.service.ts',
     ],

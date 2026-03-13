@@ -5,13 +5,13 @@ jest.mock("dotenv", () => ({ config: jest.fn() }));
 // ─── Imports ─────────────────────────────────────────────────────────────────
 import { Request, Response, NextFunction } from "express";
 import jwt from "jsonwebtoken";
-import { authenticate } from "../authMiddleware";
+import { authenticate } from "../../middleware/authMiddleware";
 import {
   isAppAdmin,
   isRestaurantAdmin,
   isCustomer,
   isDeliveryPersonnel,
-} from "../role.middleware";
+} from "../../middleware/role.middleware";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const mockRes = (): Response => {

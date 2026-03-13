@@ -1,4 +1,4 @@
-jest.mock("../models/order.model", () => ({
+jest.mock("../../models/order.model", () => ({
   Order: {
     create: jest.fn(),
     findById: jest.fn(),
@@ -8,23 +8,23 @@ jest.mock("../models/order.model", () => ({
   },
 }));
 
-jest.mock("./email.service", () => ({
+jest.mock("../../services/email.service", () => ({
   sendOrderStatusEmail: jest.fn(),
 }));
 
-jest.mock("./sms.service", () => ({
+jest.mock("../../services/sms.service", () => ({
   sendOrderStatusSMS: jest.fn(),
 }));
 
-jest.mock("../utils/logger", () => ({
+jest.mock("../../utils/logger", () => ({
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
 }));
 
-import { Order } from "../models/order.model";
-import { sendOrderStatusEmail } from "./email.service";
-import { sendOrderStatusSMS } from "./sms.service";
+import { Order } from "../../models/order.model";
+import { sendOrderStatusEmail } from "../../services/email.service";
+import { sendOrderStatusSMS } from "../../services/sms.service";
 import {
   createOrder,
   getOrderById,
@@ -35,7 +35,7 @@ import {
   getOrdersByUserId,
   processOrderPayment,
   updateOrderStatus,
-} from "./orders.service";
+} from "../../services/orders.service";
 
 const mockOrderDoc = (overrides: Record<string, unknown> = {}) => ({
   _id: { toString: () => "order-1" },

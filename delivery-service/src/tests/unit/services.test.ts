@@ -1,4 +1,4 @@
-jest.mock("../models/delivery.model", () => {
+jest.mock("../../models/delivery.model", () => {
   const Delivery = jest.fn().mockImplementation((data) => ({
     ...data,
     _id: { toString: () => "delivery-1" },
@@ -17,7 +17,7 @@ jest.mock("../models/delivery.model", () => {
   return { Delivery };
 });
 
-jest.mock("../models/driver.model", () => {
+jest.mock("../../models/driver.model", () => {
   const Driver = jest.fn().mockImplementation((data) => ({
     ...data,
     _id: { toString: () => "driver-1" },
@@ -33,14 +33,14 @@ jest.mock("../models/driver.model", () => {
   return { Driver };
 });
 
-jest.mock("../utils/logger", () => ({
+jest.mock("../../utils/logger", () => ({
   logInfo: jest.fn(),
   logWarn: jest.fn(),
   logError: jest.fn(),
 }));
 
-import { Delivery } from "../models/delivery.model";
-import { Driver } from "../models/driver.model";
+import { Delivery } from "../../models/delivery.model";
+import { Driver } from "../../models/driver.model";
 import {
   createDelivery,
   findDeliveryByOrderId,
@@ -48,14 +48,14 @@ import {
   findAssignedDeliveriesForDriver,
   findAllDeliveriesForDriver,
   updateDeliveryStatusById,
-} from "./delivery.service";
+} from "../../services/delivery.service";
 import {
   findDriverByUserId,
   createDriver,
   updateDriverProfile,
   findAvailableDriver,
   markDriverAvailability,
-} from "./driver.service";
+} from "../../services/driver.service";
 
 const chainWithSingle = (value: unknown) => ({
   where: jest.fn().mockReturnThis(),

@@ -1,9 +1,9 @@
 import { Request, Response } from "express";
-import * as controller from "./restaurants.controller";
-import * as restaurantsService from "../services/restaurants.service";
+import * as controller from "../../controllers/restaurants.controller";
+import * as restaurantsService from "../../services/restaurants.service";
 
-jest.mock("../services/restaurants.service");
-jest.mock("../utils/logger", () => ({
+jest.mock("../../services/restaurants.service");
+jest.mock("../../utils/logger", () => ({
   logError: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
@@ -67,12 +67,16 @@ describe("restaurants.controller", () => {
       } as any;
       const res = createMockResponse();
 
-      mockedService.createRestaurant.mockRejectedValue(new Error("create failed"));
+      mockedService.createRestaurant.mockRejectedValue(
+        new Error("create failed"),
+      );
 
       await controller.create(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -93,12 +97,16 @@ describe("restaurants.controller", () => {
       const req = {} as Request;
       const res = createMockResponse();
 
-      mockedService.getAllRestaurants.mockRejectedValue(new Error("list failed"));
+      mockedService.getAllRestaurants.mockRejectedValue(
+        new Error("list failed"),
+      );
 
       await controller.list(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -152,7 +160,9 @@ describe("restaurants.controller", () => {
       await controller.getOne(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -177,7 +187,9 @@ describe("restaurants.controller", () => {
 
       await controller.getByUser(req, res);
 
-      expect(mockedService.getRestaurantByUserId).toHaveBeenCalledWith("user-1");
+      expect(mockedService.getRestaurantByUserId).toHaveBeenCalledWith(
+        "user-1",
+      );
       expect(res.json).toHaveBeenCalledWith(restaurants);
     });
 
@@ -190,7 +202,9 @@ describe("restaurants.controller", () => {
       await controller.getByUser(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -257,7 +271,11 @@ describe("restaurants.controller", () => {
         file: { filename: "new.png" },
       } as any;
       const res = createMockResponse();
-      const updated = { _id: "rest-1", name: "Updated", image: "new.png" } as any;
+      const updated = {
+        _id: "rest-1",
+        name: "Updated",
+        image: "new.png",
+      } as any;
 
       mockedService.updateRestaurant.mockResolvedValue(updated);
 
@@ -283,7 +301,9 @@ describe("restaurants.controller", () => {
       await controller.update(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ message: "Restaurant not found" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Restaurant not found",
+      });
     });
 
     it("returns 500 when service throws", async () => {
@@ -294,12 +314,16 @@ describe("restaurants.controller", () => {
       } as any;
       const res = createMockResponse();
 
-      mockedService.updateRestaurant.mockRejectedValue(new Error("update failed"));
+      mockedService.updateRestaurant.mockRejectedValue(
+        new Error("update failed"),
+      );
 
       await controller.update(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -321,9 +345,13 @@ describe("restaurants.controller", () => {
       const req = { params: { id: "rest-1" } } as unknown as Request;
       const res = createMockResponse();
 
-      mockedService.listMenuItems.mockRejectedValue(new Error("list items failed"));
+      mockedService.listMenuItems.mockRejectedValue(
+        new Error("list items failed"),
+      );
 
-      await expect(controller.listMenuItems(req, res)).rejects.toThrow("list items failed");
+      await expect(controller.listMenuItems(req, res)).rejects.toThrow(
+        "list items failed",
+      );
     });
   });
 
@@ -342,7 +370,10 @@ describe("restaurants.controller", () => {
       const req = { user: { id: "user-1" }, params: { id: "rest-1" } } as any;
       const res = createMockResponse();
 
-      mockedService.deleteRestaurant.mockResolvedValue({ _id: "rest-1", name: "R" } as any);
+      mockedService.deleteRestaurant.mockResolvedValue({
+        _id: "rest-1",
+        name: "R",
+      } as any);
 
       await controller.remove(req, res);
 
@@ -360,19 +391,25 @@ describe("restaurants.controller", () => {
       await controller.remove(req, res);
 
       expect(res.status).toHaveBeenCalledWith(404);
-      expect(res.json).toHaveBeenCalledWith({ message: "Restaurant not found" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Restaurant not found",
+      });
     });
 
     it("returns 500 when service throws", async () => {
       const req = { user: { id: "user-1" }, params: { id: "rest-1" } } as any;
       const res = createMockResponse();
 
-      mockedService.deleteRestaurant.mockRejectedValue(new Error("delete failed"));
+      mockedService.deleteRestaurant.mockRejectedValue(
+        new Error("delete failed"),
+      );
 
       await controller.remove(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 
@@ -380,7 +417,12 @@ describe("restaurants.controller", () => {
     it("addMenuItem returns 401 when user is missing", async () => {
       const req = {
         params: { id: "rest-1" },
-        body: { name: "Burger", description: "D", category: "Main", price: 1200 },
+        body: {
+          name: "Burger",
+          description: "D",
+          category: "Main",
+          price: 1200,
+        },
       } as any;
       const res = createMockResponse();
 
@@ -427,7 +469,12 @@ describe("restaurants.controller", () => {
       const req = {
         user: { id: "user-1" },
         params: { id: "rest-1" },
-        body: { name: "Burger", description: "Tasty", category: "Main", price: 1200 },
+        body: {
+          name: "Burger",
+          description: "Tasty",
+          category: "Main",
+          price: 1200,
+        },
       } as any;
       const res = createMockResponse();
 
@@ -436,7 +483,9 @@ describe("restaurants.controller", () => {
       await controller.addMenuItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
 
     it("getOneMenuItem returns 404 when item is not found", async () => {
@@ -455,12 +504,16 @@ describe("restaurants.controller", () => {
       const req = { params: { itemId: "bad-id" } } as any;
       const res = createMockResponse();
 
-      mockedService.getOneMenuItem.mockRejectedValue({ name: "CastError" } as any);
+      mockedService.getOneMenuItem.mockRejectedValue({
+        name: "CastError",
+      } as any);
 
       await controller.getOneMenuItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(400);
-      expect(res.json).toHaveBeenCalledWith({ message: "Invalid menu item ID format" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Invalid menu item ID format",
+      });
     });
 
     it("getOneMenuItem returns item on success", async () => {
@@ -483,12 +536,16 @@ describe("restaurants.controller", () => {
       const req = { params: { itemId: "m1" } } as any;
       const res = createMockResponse();
 
-      mockedService.getOneMenuItem.mockRejectedValue(new Error("lookup failed"));
+      mockedService.getOneMenuItem.mockRejectedValue(
+        new Error("lookup failed"),
+      );
 
       await controller.getOneMenuItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
 
     it("getMenuItemsByUser returns 401 when user is missing", async () => {
@@ -518,12 +575,16 @@ describe("restaurants.controller", () => {
       const req = { user: { id: "user-1" } } as any;
       const res = createMockResponse();
 
-      mockedService.getMenuItemsByUser.mockRejectedValue(new Error("list by user failed"));
+      mockedService.getMenuItemsByUser.mockRejectedValue(
+        new Error("list by user failed"),
+      );
 
       await controller.getMenuItemsByUser(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
 
     it("updateMenuItem returns 404 when item is not found", async () => {
@@ -584,12 +645,16 @@ describe("restaurants.controller", () => {
       } as any;
       const res = createMockResponse();
 
-      mockedService.updateMenuItem.mockRejectedValue(new Error("update failed"));
+      mockedService.updateMenuItem.mockRejectedValue(
+        new Error("update failed"),
+      );
 
       await controller.updateMenuItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
 
     it("deleteMenuItem returns 401 when user is missing", async () => {
@@ -618,7 +683,10 @@ describe("restaurants.controller", () => {
       const req = { user: { id: "user-1" }, params: { itemId: "m1" } } as any;
       const res = createMockResponse();
 
-      mockedService.deleteMenuItem.mockResolvedValue({ _id: "m1", name: "Burger" } as any);
+      mockedService.deleteMenuItem.mockResolvedValue({
+        _id: "m1",
+        name: "Burger",
+      } as any);
 
       await controller.deleteMenuItem(req, res);
 
@@ -630,12 +698,16 @@ describe("restaurants.controller", () => {
       const req = { user: { id: "user-1" }, params: { itemId: "m1" } } as any;
       const res = createMockResponse();
 
-      mockedService.deleteMenuItem.mockRejectedValue(new Error("delete item failed"));
+      mockedService.deleteMenuItem.mockRejectedValue(
+        new Error("delete item failed"),
+      );
 
       await controller.deleteMenuItem(req, res);
 
       expect(res.status).toHaveBeenCalledWith(500);
-      expect(res.json).toHaveBeenCalledWith({ message: "Something went wrong" });
+      expect(res.json).toHaveBeenCalledWith({
+        message: "Something went wrong",
+      });
     });
   });
 });

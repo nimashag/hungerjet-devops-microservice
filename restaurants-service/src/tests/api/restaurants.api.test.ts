@@ -1,12 +1,12 @@
 import request from "supertest";
-import * as restaurantsService from "../services/restaurants.service";
+import * as restaurantsService from "../../services/restaurants.service";
 
 process.env.JWT_SECRET = "test-secret";
 // Import app after JWT secret is set because auth middleware validates env at module load.
-import app from "../app";
+import app from "../../app";
 
-jest.mock("../services/restaurants.service");
-jest.mock("../utils/logger", () => ({
+jest.mock("../../services/restaurants.service");
+jest.mock("../../utils/logger", () => ({
   logError: jest.fn(),
   logInfo: jest.fn(),
   logWarn: jest.fn(),
