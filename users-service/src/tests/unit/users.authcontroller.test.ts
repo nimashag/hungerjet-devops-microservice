@@ -13,6 +13,8 @@ jest.mock("jsonwebtoken", () => ({
   sign: jest.fn().mockReturnValue("mocked-jwt-token"),
 }));
 
+jest.mock("mongo-sanitize", () => jest.fn((value: unknown) => value));
+
 jest.mock("../../models/users.model", () => {
   const MockUserModel: any = jest.fn().mockImplementation((data: any) => ({
     ...data,
@@ -31,6 +33,7 @@ jest.mock("../../models/users.model", () => {
 import { Request, Response } from "express";
 import { Types } from "mongoose";
 import UserModel from "../../models/users.model";
+import mongoSanitize from "mongo-sanitize";
 import {
   registerUser,
   loginUser,
@@ -58,16 +61,24 @@ const validCredential = "alpha-credential-123";
 const alternateCredential = "beta-credential-456";
 const mismatchedCredential = "gamma-credential-789";
 
-const mockFindOneResult = (value: unknown) => {
-  const where = jest.fn().mockReturnThis();
-  const equals = jest.fn().mockResolvedValueOnce(value);
-  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where, equals });
+const mockRegisterFindOneResult = (value: unknown) => {
+  const lean = jest.fn().mockResolvedValueOnce(value);
+  const select = jest.fn().mockReturnValue({ lean });
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ select });
 };
 
-const mockFindOneError = (error: Error) => {
-  const where = jest.fn().mockReturnThis();
-  const equals = jest.fn().mockRejectedValueOnce(error);
-  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ where, equals });
+const mockRegisterFindOneError = (error: Error) => {
+  const lean = jest.fn().mockRejectedValueOnce(error);
+  const select = jest.fn().mockReturnValue({ lean });
+  (UserModel.findOne as jest.Mock).mockReturnValueOnce({ select });
+};
+
+const mockLoginFindOneResult = (value: unknown) => {
+  (UserModel.findOne as jest.Mock).mockResolvedValueOnce(value);
+};
+
+const mockLoginFindOneError = (error: Error) => {
+  (UserModel.findOne as jest.Mock).mockRejectedValueOnce(error);
 };
 
 // ─── registerUser ─────────────────────────────────────────────────────────────
@@ -106,7 +117,7 @@ describe("registerUser", () => {
   });
 
   it("returns 409 when user already exists", async () => {
-    mockFindOneResult({
+    mockRegisterFindOneResult({
       _id: "existing-id",
     });
     const req = mockReq({ body: validBody });
@@ -117,7 +128,7 @@ describe("registerUser", () => {
   });
 
   it("returns 201 on successful registration", async () => {
-    mockFindOneResult(null);
+    mockRegisterFindOneResult(null);
     const req = mockReq({ body: validBody });
     const res = mockRes();
     await registerUser(req, res);
@@ -128,11 +139,65 @@ describe("registerUser", () => {
   });
 
   it("returns 500 when a database error occurs", async () => {
-    mockFindOneError(new Error("db error"));
+    mockRegisterFindOneError(new Error("db error"));
     const req = mockReq({ body: validBody });
     const res = mockRes();
     await registerUser(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it("returns 400 when email has invalid structure", async () => {
+    const req = mockReq({ body: { ...validBody, email: "aliceexample.com" } });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(UserModel.findOne).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when sanitizer rejects email filter", async () => {
+    (mongoSanitize as unknown as jest.Mock).mockReturnValueOnce(null);
+    const req = mockReq({ body: validBody });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Invalid registration input",
+    });
+  });
+
+  it("returns 400 when sanitizer returns a non-string email", async () => {
+    (mongoSanitize as unknown as jest.Mock).mockReturnValueOnce({ email: 123 });
+    const req = mockReq({ body: validBody });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 for an email with multiple @ symbols", async () => {
+    const req = mockReq({
+      body: { ...validBody, email: "alice@@example.com" },
+    });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 for an email containing spaces", async () => {
+    const req = mockReq({
+      body: { ...validBody, email: "alice @example.com" },
+    });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 for an email containing line breaks", async () => {
+    const req = mockReq({
+      body: { ...validBody, email: "alice@\nexample.com" },
+    });
+    const res = mockRes();
+    await registerUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });
 
@@ -158,7 +223,7 @@ describe("loginUser", () => {
   });
 
   it("returns 404 when user is not found", async () => {
-    mockFindOneResult(null);
+    mockLoginFindOneResult(null);
     const req = mockReq({
       body: { email: "nobody@test.com", password: validCredential },
     });
@@ -171,7 +236,7 @@ describe("loginUser", () => {
     const mockUser = {
       comparePassword: jest.fn().mockResolvedValueOnce(false),
     };
-    mockFindOneResult(mockUser);
+    mockLoginFindOneResult(mockUser);
     const req = mockReq({
       body: { email: "user@test.com", password: mismatchedCredential },
     });
@@ -189,7 +254,7 @@ describe("loginUser", () => {
       isApproved: true,
       comparePassword: jest.fn().mockResolvedValueOnce(true),
     };
-    mockFindOneResult(mockUser);
+    mockLoginFindOneResult(mockUser);
     const req = mockReq({
       body: { email: "bob@test.com", password: alternateCredential },
     });
@@ -201,13 +266,73 @@ describe("loginUser", () => {
   });
 
   it("returns 500 on unexpected error", async () => {
-    mockFindOneError(new Error("db error"));
+    mockLoginFindOneError(new Error("db error"));
     const req = mockReq({
       body: { email: "a@b.com", password: validCredential },
     });
     const res = mockRes();
     await loginUser(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  it("returns 400 when email has invalid structure", async () => {
+    const req = mockReq({
+      body: { email: "invalid-email", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(UserModel.findOne).not.toHaveBeenCalled();
+  });
+
+  it("returns 400 when sanitizer rejects email filter", async () => {
+    (mongoSanitize as unknown as jest.Mock).mockReturnValueOnce(null);
+    const req = mockReq({
+      body: { email: "valid@test.com", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Invalid credentials format",
+    });
+  });
+
+  it("returns 400 when sanitizer returns an array", async () => {
+    (mongoSanitize as unknown as jest.Mock).mockReturnValueOnce([]);
+    const req = mockReq({
+      body: { email: "valid@test.com", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 when email domain starts with a dot", async () => {
+    const req = mockReq({
+      body: { email: "valid@.test.com", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 when email domain ends with a dot", async () => {
+    const req = mockReq({
+      body: { email: "valid@test.com.", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  it("returns 400 when email domain has no dot", async () => {
+    const req = mockReq({
+      body: { email: "valid@test", password: validCredential },
+    });
+    const res = mockRes();
+    await loginUser(req, res);
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 });
 
@@ -256,6 +381,21 @@ describe("getMyProfile", () => {
     const res = mockRes();
     await getMyProfile(req, res);
     expect(res.json).toHaveBeenCalledWith(user);
+  });
+
+  it("returns 500 when profile query throws", async () => {
+    (UserModel.findById as jest.Mock).mockReturnValue({
+      select: jest
+        .fn()
+        .mockRejectedValueOnce(new Error("profile query failed")),
+    });
+    const req = { user: { id: "uid" } } as any;
+    const res = mockRes();
+    await getMyProfile(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Failed to fetch user" }),
+    );
   });
 });
 
@@ -317,6 +457,54 @@ describe("updateUserById", () => {
     await updateUserById(req, res);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ message: "User updated successfully" }),
+    );
+  });
+
+  it("maps all allowed fields including isApproved during update", async () => {
+    (Types.ObjectId.isValid as jest.Mock).mockReturnValueOnce(true);
+    const updatedUser = { _id: "uid", name: "Updated" };
+    (UserModel.findByIdAndUpdate as jest.Mock).mockReturnValue({
+      select: jest.fn().mockResolvedValueOnce(updatedUser),
+    });
+    const req = mockReq({
+      params: { id: "507f1f77bcf86cd799439011" },
+      body: {
+        name: "Updated",
+        email: "updated@test.com",
+        role: "appAdmin",
+        phone: "0711111111",
+        address: { city: "Colombo" },
+        isApproved: 1,
+      },
+    });
+    const res = mockRes();
+    await updateUserById(req, res);
+    const updateDoc = (UserModel.findByIdAndUpdate as jest.Mock).mock
+      .calls[0][1];
+    expect(updateDoc.$set).toMatchObject({
+      name: "Updated",
+      email: "updated@test.com",
+      role: "appAdmin",
+      phone: "0711111111",
+      address: { city: "Colombo" },
+      isApproved: true,
+    });
+  });
+
+  it("returns 500 when update query throws", async () => {
+    (Types.ObjectId.isValid as jest.Mock).mockReturnValueOnce(true);
+    (UserModel.findByIdAndUpdate as jest.Mock).mockReturnValue({
+      select: jest.fn().mockRejectedValueOnce(new Error("update failed")),
+    });
+    const req = mockReq({
+      params: { id: "507f1f77bcf86cd799439011" },
+      body: { name: "Updated" },
+    });
+    const res = mockRes();
+    await updateUserById(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ message: "Failed to update user" }),
     );
   });
 });

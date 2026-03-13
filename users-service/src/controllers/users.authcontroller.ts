@@ -3,6 +3,7 @@ import { Types } from "mongoose";
 import UserModel from "../models/users.model";
 import jwt from "jsonwebtoken";
 import dotenv from "dotenv";
+import mongoSanitize from "mongo-sanitize";
 
 dotenv.config();
 const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
@@ -11,10 +12,49 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const sanitizeForLog = (value: unknown): string =>
   String(value).replaceAll("\r", " ").replaceAll("\n", " ");
 
+const isLikelyValidEmail = (email: string): boolean => {
+  if (
+    !email ||
+    email.length > 254 ||
+    email.includes("\r") ||
+    email.includes("\n")
+  ) {
+    return false;
+  }
+
+  const atIndex = email.indexOf("@");
+  if (atIndex <= 0 || atIndex !== email.lastIndexOf("@")) return false;
+
+  const localPart = email.slice(0, atIndex);
+  const domainPart = email.slice(atIndex + 1);
+  if (!localPart || !domainPart) return false;
+  if (domainPart.startsWith(".") || domainPart.endsWith(".")) return false;
+  if (!domainPart.includes(".")) return false;
+  if (email.includes(" ")) return false;
+
+  return true;
+};
+
+const createSafeEmailFilter = (email: string): { email: string } | null => {
+  const sanitizedFilter = mongoSanitize({ email });
+  if (
+    !sanitizedFilter ||
+    typeof sanitizedFilter !== "object" ||
+    Array.isArray(sanitizedFilter)
+  ) {
+    return null;
+  }
+
+  const safeEmail = (sanitizedFilter as Record<string, unknown>).email;
+  if (typeof safeEmail !== "string") return null;
+
+  return { email: safeEmail };
+};
+
 const normalizeEmail = (value: unknown): string | null => {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toLowerCase();
-  if (!normalized || /[\r\n]/.test(normalized)) return null;
+  if (!isLikelyValidEmail(normalized)) return null;
   return normalized;
 };
 
@@ -46,9 +86,14 @@ export const registerUser = async (req: Request, res: Response) => {
       role: sanitizeForLog(role),
     });
 
-    const existingUser = await UserModel.findOne()
-      .where("email")
-      .equals(normalizedEmail);
+    const safeEmailFilter = createSafeEmailFilter(normalizedEmail);
+    if (!safeEmailFilter) {
+      return res.status(400).json({ message: "Invalid registration input" });
+    }
+
+    const existingUser = await UserModel.findOne(safeEmailFilter)
+      .select("_id")
+      .lean();
     if (existingUser) {
       return res.status(409).json({ message: "User already exists" });
     }
@@ -81,9 +126,12 @@ export const loginUser = async (req: Request, res: Response) => {
       return res.status(400).json({ message: "Invalid credentials format" });
     }
 
-    const user = await UserModel.findOne()
-      .where("email")
-      .equals(normalizedEmail);
+    const safeEmailFilter = createSafeEmailFilter(normalizedEmail);
+    if (!safeEmailFilter) {
+      return res.status(400).json({ message: "Invalid credentials format" });
+    }
+
+    const user = await UserModel.findOne(safeEmailFilter);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await user.comparePassword(password);
