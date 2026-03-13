@@ -1,13 +1,9 @@
 import { useState, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
 import {
-  apiBase,
-  userUrl,
-  restaurantUrl,
-  orderUrl,
-  deliveryUrl,
+  userUrl
 } from "../../../api";
 import { resetSessionId } from "../../../utils/sessionManager";
 import { getPasswordValidationError } from "../../../utils/authValidation";

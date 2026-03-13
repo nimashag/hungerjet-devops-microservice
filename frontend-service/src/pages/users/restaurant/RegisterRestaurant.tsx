@@ -3,11 +3,7 @@ import { useNavigate } from "react-router-dom";
 import httpClient from "../../../utils/httpClient";
 import gsap from "gsap";
 import {
-  apiBase,
-  userUrl,
-  restaurantUrl,
-  orderUrl,
-  deliveryUrl,
+  userUrl
 } from "../../../api";
 import { getPasswordValidationError } from "../../../utils/authValidation";
 

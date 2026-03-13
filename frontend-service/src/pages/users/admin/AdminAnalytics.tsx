@@ -13,7 +13,7 @@ import {
   ArcElement,
   DoughnutController,
 } from "chart.js";
-import { Users, ShieldCheck, AlertCircle, FileDown } from "lucide-react";
+import { FileDown } from "lucide-react";
 import { userUrl } from "../../../api";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";

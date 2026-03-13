@@ -3,10 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import gsap from "gsap";
 import httpClient from "../../../utils/httpClient";
 import {
-  apiBase,
   userUrl,
-  restaurantUrl,
-  orderUrl,
   deliveryUrl,
 } from "../../../api";
 import { resetSessionId } from "../../../utils/sessionManager";
