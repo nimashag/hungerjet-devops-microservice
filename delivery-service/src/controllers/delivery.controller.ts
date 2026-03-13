@@ -30,6 +30,32 @@ const USER_SERVICE_BASE_URL =
 
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+/** Fetch an order safely; returns null when the orderId fails the
+ * SAFE_ID_PATTERN guard or when the remote call throws. */
+async function fetchOrderSafe(
+  delivery: any,
+  invalidLogKey: string,
+  errorLogKey: string,
+): Promise<any | null> {
+  if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
+    logWarn(invalidLogKey, { orderId: delivery.orderId });
+    return null;
+  }
+  try {
+    const orderRes = await httpClient.get(
+      `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(delivery.orderId)}`,
+    );
+    return orderRes.data;
+  } catch (err) {
+    logWarn(errorLogKey, {
+      orderId: delivery.orderId,
+      deliveryId: delivery._id?.toString(),
+      error: (err as Error).message,
+    });
+    return null;
+  }
+}
+
 export const assignDriverAutomatically = async (
   req: Request,
   res: Response,
@@ -227,36 +253,20 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
     // 3️⃣ Fetch full deliveryAddress for each order
     const enhancedDeliveries = await Promise.all(
       deliveries.map(async (delivery) => {
-        try {
-          if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
-            logWarn("delivery.assigned.order.invalidId", {
-              orderId: delivery.orderId,
-            });
-            return { ...delivery.toObject(), deliveryAddress: null };
-          }
-          const orderRes = await httpClient.get(
-            `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(delivery.orderId)}`,
-          );
-          const order = orderRes.data;
-
-          return {
-            ...delivery.toObject(), // convert mongoose document to plain object
-            deliveryAddress: order.deliveryAddress || null,
-            paymentStatus: order.paymentStatus || null,
-            customerId: order.userId || null,
-            restaurantId: order.restaurantId || null,
-            specialInstructions: order.specialInstructions || "",
-          };
-        } catch (err) {
-          logWarn("delivery.assigned.order.fetchFailed", {
-            orderId: delivery.orderId,
-            error: (err as Error).message,
-          });
-          return {
-            ...delivery.toObject(),
-            deliveryAddress: null,
-          };
-        }
+        const order = await fetchOrderSafe(
+          delivery,
+          "delivery.assigned.order.invalidId",
+          "delivery.assigned.order.fetchFailed",
+        );
+        if (!order) return { ...delivery.toObject(), deliveryAddress: null };
+        return {
+          ...delivery.toObject(),
+          deliveryAddress: order.deliveryAddress || null,
+          paymentStatus: order.paymentStatus || null,
+          customerId: order.userId || null,
+          restaurantId: order.restaurantId || null,
+          specialInstructions: order.specialInstructions || "",
+        };
       }),
     );
 
@@ -314,33 +324,16 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
 
     const enhancedDeliveries = await Promise.all(
       deliveries.map(async (delivery) => {
-        try {
-          if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
-            logWarn("delivery.my_deliveries.order.invalidId", {
-              orderId: delivery.orderId,
-            });
-            return { ...delivery.toObject(), deliveryAddress: null };
-          }
-          const orderRes = await httpClient.get(
-            `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(delivery.orderId)}`,
-          );
-          const order = orderRes.data;
-
-          return {
-            ...delivery.toObject(),
-            deliveryAddress: order.deliveryAddress || null,
-          };
-        } catch (err) {
-          logWarn("delivery.my_deliveries.order.fetch_failed", {
-            orderId: delivery.orderId,
-            deliveryId: delivery._id.toString(),
-            error: (err as Error).message,
-          });
-          return {
-            ...delivery.toObject(),
-            deliveryAddress: null,
-          };
-        }
+        const order = await fetchOrderSafe(
+          delivery,
+          "delivery.my_deliveries.order.invalidId",
+          "delivery.my_deliveries.order.fetch_failed",
+        );
+        if (!order) return { ...delivery.toObject(), deliveryAddress: null };
+        return {
+          ...delivery.toObject(),
+          deliveryAddress: order.deliveryAddress || null,
+        };
       }),
     );
 

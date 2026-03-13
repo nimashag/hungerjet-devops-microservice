@@ -52,8 +52,17 @@ jobs:
       
       - name: Run tests
         working-directory: ./${{ matrix.service }}
-        run: npm test --if-present
-        continue-on-error: true
+        run: npm run test:ci --if-present
+        continue-on-error: false
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-${{ matrix.service }}
+          path: ${{ matrix.service }}/coverage/lcov.info
+          if-no-files-found: ignore
+          retention-days: 5
       
       - name: Build TypeScript
         working-directory: ./${{ matrix.service }}
@@ -166,6 +175,21 @@ jobs:
         with:
           fetch-depth: 0  # Required for SonarCloud
       
+      - name: Download coverage reports
+        uses: actions/download-artifact@v4
+        with:
+          pattern: coverage-*
+          merge-multiple: false
+
+      - name: Move coverage files into expected paths
+        run: |
+          for svc in delivery-service orders-service restaurants-service users-service; do
+            mkdir -p "$svc/coverage"
+            if [ -f "coverage-$svc/lcov.info" ]; then
+              cp "coverage-$svc/lcov.info" "$svc/coverage/lcov.info"
+            fi
+          done
+
       - name: Run dependency check
         run: |
           echo "Dependency vulnerability check"
