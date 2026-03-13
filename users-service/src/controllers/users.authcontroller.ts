@@ -11,6 +11,14 @@ const JWT_SECRET = process.env.JWT_SECRET || "supersecret";
 const sanitizeForLog = (value: unknown): string =>
   String(value).replaceAll("\r", " ").replaceAll("\n", " ");
 
+const ensureValidObjectId = (id: string, res: Response): boolean => {
+  if (!Types.ObjectId.isValid(id)) {
+    res.status(400).json({ message: "Invalid user ID" });
+    return false;
+  }
+  return true;
+};
+
 // REGISTER
 export const registerUser = async (req: Request, res: Response) => {
   try {
@@ -130,9 +138,7 @@ export const getMyProfile = async (req: Request, res: Response) => {
 export const updateUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
+    if (!ensureValidObjectId(id, res)) return;
 
     // Whitelist updatable fields to prevent operator injection via req.body
     const { name, email, role, phone, address, isApproved } = req.body;
@@ -164,9 +170,7 @@ export const updateUserById = async (req: Request, res: Response) => {
 export const deleteUserById = async (req: Request, res: Response) => {
   try {
     const { id } = req.params;
-    if (!Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
+    if (!ensureValidObjectId(id, res)) return;
 
     const deletedUser = await UserModel.findByIdAndDelete(id);
     if (!deletedUser)
@@ -182,9 +186,7 @@ export const deleteUserById = async (req: Request, res: Response) => {
 export const getUserById = async (req: Request, res: Response) => {
   try {
     const userId = req.params.id;
-    if (!Types.ObjectId.isValid(userId)) {
-      return res.status(400).json({ message: "Invalid user ID" });
-    }
+    if (!ensureValidObjectId(userId, res)) return;
 
     const user = await UserModel.findById(userId);
 

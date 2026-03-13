@@ -298,6 +298,14 @@ describe("respondToAssignment", () => {
 
 // ─── getAssignedOrders ────────────────────────────────────────────────────────
 describe("getAssignedOrders", () => {
+  it("returns 401 when user object is missing", async () => {
+    const req = {} as any;
+    const res = mockRes();
+    await getAssignedOrders(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ message: "Unauthorized" });
+  });
+
   it("returns 401 when userId is not a string", async () => {
     const req = { user: { id: { $ne: null } } } as any;
     const res = mockRes();
@@ -349,10 +357,42 @@ describe("getAssignedOrders", () => {
     await getAssignedOrders(req, res);
     expect(res.status).toHaveBeenCalledWith(500);
   });
+
+  it("handles order-fetch errors and still returns 200 with null deliveryAddress", async () => {
+    const driver = { _id: { toString: () => "driver1" } };
+    const deliveries = [
+      {
+        _id: { toString: () => "d1" },
+        orderId: "order123",
+        toObject: () => ({ _id: "d1", orderId: "order123" }),
+      },
+    ];
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce(driver);
+    (findAssignedDeliveriesForDriver as jest.Mock).mockResolvedValueOnce(
+      deliveries,
+    );
+    (httpClient.get as jest.Mock).mockRejectedValueOnce(new Error("network"));
+    const req = { user: { id: "user123" } } as any;
+    const res = mockRes();
+
+    await getAssignedOrders(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const result = (res.json as jest.Mock).mock.calls[0][0];
+    expect(result[0].deliveryAddress).toBeNull();
+  });
 });
 
 // ─── getMyDeliveries ──────────────────────────────────────────────────────────
 describe("getMyDeliveries", () => {
+  it("returns 401 when user object is missing", async () => {
+    const req = {} as any;
+    const res = mockRes();
+    await getMyDeliveries(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ message: "Unauthorized" });
+  });
+
   it("returns 401 when userId is falsy", async () => {
     const req = { user: { id: null } } as any;
     const res = mockRes();
@@ -406,6 +446,28 @@ describe("getMyDeliveries", () => {
     const req = { user: { id: "user123" } } as any;
     const res = mockRes();
     await getMyDeliveries(req, res);
+    expect(res.status).toHaveBeenCalledWith(200);
+    const result = (res.json as jest.Mock).mock.calls[0][0];
+    expect(result[0].deliveryAddress).toBeNull();
+  });
+
+  it("handles order-fetch errors and still returns 200 with null deliveryAddress", async () => {
+    const driver = { _id: { toString: () => "driver1" } };
+    const deliveries = [
+      {
+        _id: { toString: () => "d1" },
+        orderId: "order123",
+        toObject: () => ({ _id: "d1", orderId: "order123" }),
+      },
+    ];
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce(driver);
+    (findAllDeliveriesForDriver as jest.Mock).mockResolvedValueOnce(deliveries);
+    (httpClient.get as jest.Mock).mockRejectedValueOnce(new Error("timeout"));
+    const req = { user: { id: "user123" } } as any;
+    const res = mockRes();
+
+    await getMyDeliveries(req, res);
+
     expect(res.status).toHaveBeenCalledWith(200);
     const result = (res.json as jest.Mock).mock.calls[0][0];
     expect(result[0].deliveryAddress).toBeNull();

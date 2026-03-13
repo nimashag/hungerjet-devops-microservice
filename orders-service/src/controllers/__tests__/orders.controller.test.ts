@@ -342,6 +342,26 @@ describe("updateOrderStatus", () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
+  it("returns 403 when restaurantAdmin has no restaurantId", async () => {
+    const order = {
+      _id: "o1",
+      restaurantId: { toString: () => "r1" },
+      status: "Pending",
+    };
+    (OrdersService.getOrderById as jest.Mock).mockResolvedValueOnce(order);
+    const req = mockReq(
+      { id: "user1", role: "restaurantAdmin" },
+      { status: "Confirmed" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateOrderStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Not authorized to update this order",
+    });
+  });
+
   it("returns updated order for non-restaurantAdmin role", async () => {
     const updated = { _id: { toString: () => "o1" }, status: "Confirmed" };
     (OrdersService.updateOrderStatus as jest.Mock).mockResolvedValueOnce(
@@ -355,6 +375,19 @@ describe("updateOrderStatus", () => {
     const res = mockRes();
     await updateOrderStatus(req, res);
     expect(res.json).toHaveBeenCalledWith(updated);
+  });
+
+  it("returns 404 when updateOrderStatus returns null", async () => {
+    (OrdersService.updateOrderStatus as jest.Mock).mockResolvedValueOnce(null);
+    const req = mockReq(
+      { id: "user1", role: "admin" },
+      { status: "Confirmed" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await updateOrderStatus(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Order not found" });
   });
 
   it("returns 500 on unexpected error", async () => {

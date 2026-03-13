@@ -30,13 +30,18 @@ const USER_SERVICE_BASE_URL =
 
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+const getValidatedUserId = (req: Request): string | null => {
+  const userId = (req as any).user?.id;
+  return typeof userId === "string" ? userId : null;
+};
+
 /** Fetch an order safely; returns null when the orderId fails the
  * SAFE_ID_PATTERN guard or when the remote call throws. */
 async function fetchOrderSafe(
   delivery: any,
   invalidLogKey: string,
   errorLogKey: string,
-): Promise<any | null> {
+): Promise<Record<string, any> | null> {
   if (!SAFE_ID_PATTERN.test(delivery.orderId)) {
     logWarn(invalidLogKey, { orderId: delivery.orderId });
     return null;
@@ -228,8 +233,8 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 };
 export const getAssignedOrders = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user.id;
-    if (typeof userId !== "string") {
+    const userId = getValidatedUserId(req);
+    if (!userId) {
       return res.status(401).json({ message: "Unauthorized" });
     }
     logInfo("delivery.assigned.list.start", { userId });
@@ -287,7 +292,7 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
 // ✅ Fetch All My Deliveries (Ongoing + Completed)
 export const getMyDeliveries = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).user?.id;
+    const userId = getValidatedUserId(req);
     if (!userId) {
       logWarn("delivery.my_deliveries.unauthorized", {
         reason: "No user in request",
@@ -296,12 +301,6 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
     }
 
     logInfo("delivery.my_deliveries.start", { userId });
-    if (typeof userId !== "string") {
-      logWarn("delivery.my_deliveries.unauthorized", {
-        reason: "userId is not a string",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
-    }
     const driver = await Driver.findOne({ userId });
 
     if (!driver) {
