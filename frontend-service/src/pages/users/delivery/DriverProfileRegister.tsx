@@ -1,13 +1,27 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { registerDriverProfile } from '../../../services/deliveryService';
-import { toast } from 'react-toastify';
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { registerDriverProfile } from "../../../services/deliveryService";
+import { toast } from "react-toastify";
+
+const getAvailabilityFormValue = (isAvailable: boolean): string => {
+  if (isAvailable) {
+    return "true";
+  }
+  return "false";
+};
+
+const getSubmitLabel = (isLoading: boolean): string => {
+  if (isLoading) {
+    return "Creating Profile...";
+  }
+  return "Save Profile";
+};
 
 const DriverProfileRegister = () => {
-  const [pickupLocation, setPickupLocation] = useState('');
-  const [deliveryLocations, setDeliveryLocations] = useState('');
-  const [vehicleRegNumber, setVehicleRegNumber] = useState('');
-  const [mobileNumber, setMobileNumber] = useState('');
+  const [pickupLocation, setPickupLocation] = useState("");
+  const [deliveryLocations, setDeliveryLocations] = useState("");
+  const [vehicleRegNumber, setVehicleRegNumber] = useState("");
+  const [mobileNumber, setMobileNumber] = useState("");
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [isAvailable, setIsAvailable] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
@@ -17,46 +31,48 @@ const DriverProfileRegister = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const token = localStorage.getItem('token');
+    const token = localStorage.getItem("token");
     if (!token) {
-      toast.error('No token found. Please login again.');
-      navigate('/login/delivery');
+      toast.error("No token found. Please login again.");
+      navigate("/login/delivery");
       return;
     }
 
     // Validation
     if (!pickupLocation.trim()) {
-      toast.error('Pickup location is required');
+      toast.error("Pickup location is required");
       return;
     }
     if (!vehicleRegNumber.trim()) {
-      toast.error('Vehicle registration number is required');
+      toast.error("Vehicle registration number is required");
       return;
     }
     if (!mobileNumber.trim()) {
-      toast.error('Mobile number is required');
+      toast.error("Mobile number is required");
       return;
     }
 
     try {
       setIsLoading(true);
       const formData = new FormData();
-      formData.append('pickupLocation', pickupLocation);
-      formData.append('deliveryLocations', deliveryLocations); 
-      formData.append('vehicleRegNumber', vehicleRegNumber);
-      formData.append('mobileNumber', mobileNumber);
-      formData.append('isAvailable', isAvailable ? 'true' : 'false');
+      formData.append("pickupLocation", pickupLocation);
+      formData.append("deliveryLocations", deliveryLocations);
+      formData.append("vehicleRegNumber", vehicleRegNumber);
+      formData.append("mobileNumber", mobileNumber);
+      formData.append("isAvailable", getAvailabilityFormValue(isAvailable));
 
       if (profileImage) {
-        formData.append('profileImage', profileImage);
+        formData.append("profileImage", profileImage);
       }
 
       await registerDriverProfile(formData);
-      toast.success('Driver profile created successfully!');
-      navigate('/driver/dashboard');
+      toast.success("Driver profile created successfully!");
+      navigate("/driver/dashboard");
     } catch (error: any) {
-      console.error('Error creating driver profile:', error);
-      toast.error(error.response?.data?.message || 'Failed to create driver profile.');
+      console.error("Error creating driver profile:", error);
+      toast.error(
+        error.response?.data?.message || "Failed to create driver profile.",
+      );
     } finally {
       setIsLoading(false);
     }
@@ -74,7 +90,12 @@ const DriverProfileRegister = () => {
             Tell us more about yourself to start delivering with HungerJet!
           </p>
 
-          <form className="space-y-4" onSubmit={handleSubmit} encType="multipart/form-data" noValidate>
+          <form
+            className="space-y-4"
+            onSubmit={handleSubmit}
+            encType="multipart/form-data"
+            noValidate
+          >
             <div>
               <input
                 type="text"
@@ -84,7 +105,9 @@ const DriverProfileRegister = () => {
                 className="w-full px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
                 required
               />
-              <p className="text-xs text-gray-400 mt-1">📍 This is where you'll pick up orders from restaurants</p>
+              <p className="text-xs text-gray-400 mt-1">
+                📍 This is where you'll pick up orders from restaurants
+              </p>
             </div>
 
             <div>
@@ -126,7 +149,9 @@ const DriverProfileRegister = () => {
                 onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
                 className="w-full px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
               />
-              <p className="text-xs text-gray-400 mt-1">Profile photo (optional)</p>
+              <p className="text-xs text-gray-400 mt-1">
+                Profile photo (optional)
+              </p>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -136,7 +161,9 @@ const DriverProfileRegister = () => {
                 onChange={(e) => setIsAvailable(e.target.checked)}
                 className="h-5 w-5 text-green-500"
               />
-              <span className="text-gray-700 text-sm">Available for delivery orders</span>
+              <span className="text-gray-700 text-sm">
+                Available for delivery orders
+              </span>
             </div>
 
             <div className="relative w-full mt-6">
@@ -145,15 +172,15 @@ const DriverProfileRegister = () => {
                 disabled={isLoading}
                 className="w-full relative bg-black hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-full overflow-hidden z-10 transition font-semibold"
               >
-                {isLoading ? 'Creating Profile...' : 'Save Profile'}
+                {getSubmitLabel(isLoading)}
               </button>
             </div>
           </form>
 
           <p className="text-center text-sm mt-6">
-            Not ready yet?{' '}
+            Not ready yet?{" "}
             <span
-              onClick={() => navigate('/driver/dashboard')}
+              onClick={() => navigate("/driver/dashboard")}
               className="text-green-600 hover:underline cursor-pointer font-semibold"
             >
               Skip for now

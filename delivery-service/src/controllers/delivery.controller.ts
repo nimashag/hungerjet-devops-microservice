@@ -40,6 +40,240 @@ const getValidatedUserId = (req: Request): string | null => {
 const normalizeLocation = (value: unknown): string =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
+type AssignmentAction = "accept" | "decline";
+
+const isAssignmentAction = (value: unknown): value is AssignmentAction =>
+  value === "accept" || value === "decline";
+
+async function handleDeclinedAssignment(
+  orderId: string,
+  delivery: any,
+): Promise<{ message: string; delivery: any }> {
+  logInfo("delivery.assign.declined", { orderId });
+
+  const orderRes = await httpClient.get(
+    `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(orderId)}`,
+  );
+  const order = orderRes.data;
+
+  const newDriver = await findAvailableDriver(
+    delivery.restaurantLocation,
+    order.deliveryAddress.city,
+  );
+
+  if (!newDriver) {
+    logWarn("delivery.assign.reassign.none", { orderId });
+    delivery.driverId = undefined;
+    delivery.acceptStatus = "Pending";
+    delivery.status = "Pending";
+    await delivery.save();
+
+    return {
+      message: "No driver available to reassign. Delivery pending.",
+      delivery,
+    };
+  }
+
+  logInfo("delivery.assign.reassign.found", {
+    orderId,
+    newDriverId: newDriver._id.toString(),
+  });
+
+  delivery.driverId = newDriver._id.toString();
+  delivery.acceptStatus = "Pending";
+  delivery.status = "Assigned";
+  await delivery.save();
+
+  await markDriverAvailability(newDriver._id.toString(), false);
+
+  return {
+    message: "Delivery reassigned to another driver",
+    delivery,
+  };
+}
+
+async function notifyCustomerOnDeliveredStatus(
+  updatedDelivery: any,
+): Promise<"ok" | "invalid-delivery-record" | "invalid-order-record"> {
+  const order = await fetchOrderForDeliveredNotification(updatedDelivery);
+  if (!order) {
+    return "invalid-delivery-record";
+  }
+
+  const user = await fetchUserForDeliveredNotification(order);
+  if (!user) {
+    return "invalid-order-record";
+  }
+
+  await sendDeliveredNotifications(updatedDelivery.orderId, order, user);
+
+  return "ok";
+}
+
+async function fetchOrderForDeliveredNotification(
+  updatedDelivery: any,
+): Promise<Record<string, any> | null> {
+  if (!SAFE_ID_PATTERN.test(updatedDelivery.orderId)) {
+    logWarn("delivery.status.invalidOrderId", {
+      orderId: updatedDelivery.orderId,
+    });
+    return null;
+  }
+
+  logInfo("delivery.status.fetchOrder.start", {
+    orderId: updatedDelivery.orderId,
+  });
+
+  const orderRes = await httpClient.get(
+    `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(updatedDelivery.orderId)}`,
+  );
+
+  logInfo("delivery.status.fetchOrder.success", {
+    orderId: updatedDelivery.orderId,
+  });
+
+  return orderRes.data;
+}
+
+async function fetchUserForDeliveredNotification(
+  order: Record<string, any>,
+): Promise<Record<string, any> | null> {
+  if (!SAFE_ID_PATTERN.test(String(order.userId))) {
+    logWarn("delivery.status.invalidUserId", { userId: order.userId });
+    return null;
+  }
+
+  const userRes = await httpClient.get(
+    `${USER_SERVICE_BASE_URL}/${encodeURIComponent(order.userId)}`,
+  );
+  const user = userRes.data;
+
+  logInfo("delivery.status.fetchUser.success", { userId: user._id });
+  return user;
+}
+
+async function sendDeliveredNotifications(
+  orderId: string,
+  order: Record<string, any>,
+  user: Record<string, any>,
+): Promise<void> {
+  const customerEmail = "dev40.emailtest@gmail.com";
+  const customerName = user.name;
+  const deliveryAddress = order.deliveryAddress;
+  const customerPhone = "+94778964821";
+
+  const subject = `Your Order with HungerJet has been Delivered!`;
+  const text = `
+        Hello ${customerName},\n\n
+        We are happy to inform you that your order with HungerJet has been successfully delivered to your address: 
+        ${deliveryAddress?.street}, ${deliveryAddress?.city}.\n\n
+        Thank you for choosing HungerJet, and we look forward to serving you again soon!\n\n
+        Best regards,\n
+        HungerJet Team
+      `;
+
+  const message = `Hello, your order has been delivered to ${deliveryAddress?.street}, ${deliveryAddress?.city}. Thank you for choosing HungerJet!`;
+
+  if (customerEmail) {
+    logInfo("delivery.status.notify.email", {
+      to: customerEmail,
+      orderId,
+    });
+    await sendEmail(customerEmail, subject, text);
+  }
+
+  if (customerPhone) {
+    logInfo("delivery.status.notify.sms", {
+      to: customerPhone,
+      orderId,
+    });
+    await sendSMS(customerPhone, message);
+  }
+}
+
+async function backfillDeliveriesForPickupLocation(
+  userId: string,
+  driverId: string,
+  normalizedPickupLocation: string,
+): Promise<void> {
+  try {
+    const ordersRes = await httpClient.get(`${ORDER_SERVICE_BASE_URL}`);
+    const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
+    const waitingOrders = allOrders.filter(
+      (order: any) => order?.status === "Waiting for Pickup",
+    );
+
+    let backfilledCount = 0;
+
+    for (const order of waitingOrders) {
+      const orderId = String(order?._id || "");
+      const customerId = String(order?.userId || "");
+      const restaurantId = String(order?.restaurantId || "");
+      const deliveryCity = String(order?.deliveryAddress?.city || "");
+
+      if (
+        !orderId ||
+        !customerId ||
+        !restaurantId ||
+        !deliveryCity ||
+        !SAFE_ID_PATTERN.test(orderId) ||
+        !SAFE_ID_PATTERN.test(customerId) ||
+        !SAFE_ID_PATTERN.test(restaurantId)
+      ) {
+        continue;
+      }
+
+      const existingDelivery = await Delivery.findOne({ orderId });
+      if (existingDelivery) {
+        continue;
+      }
+
+      let restaurantLocation = "";
+      try {
+        const restaurantRes = await httpClient.get(
+          `${RESTAURANTS_SERVICE_URL}/${encodeURIComponent(restaurantId)}`,
+        );
+        restaurantLocation = String(restaurantRes.data?.location || "");
+      } catch (restaurantError) {
+        logWarn("delivery.available_orders.backfill.restaurant_fetch_failed", {
+          orderId,
+          restaurantId,
+          error: (restaurantError as Error).message,
+        });
+        continue;
+      }
+
+      if (normalizeLocation(restaurantLocation) !== normalizedPickupLocation) {
+        continue;
+      }
+
+      await Delivery.create({
+        orderId,
+        customerId,
+        restaurantLocation,
+        deliveryLocation: deliveryCity,
+        status: "Assigned",
+        acceptStatus: "Pending",
+      });
+      backfilledCount += 1;
+    }
+
+    if (backfilledCount > 0) {
+      logInfo("delivery.available_orders.backfill.created", {
+        userId,
+        driverId,
+        count: backfilledCount,
+      });
+    }
+  } catch (backfillError) {
+    logWarn("delivery.available_orders.backfill.failed", {
+      userId,
+      driverId,
+      error: (backfillError as Error).message,
+    });
+  }
+}
+
 /** Fetch an order safely; returns null when the orderId fails the
  * SAFE_ID_PATTERN guard or when the remote call throws. */
 async function fetchOrderSafe(
@@ -158,8 +392,7 @@ export const respondToAssignment = async (req: Request, res: Response) => {
   if (!SAFE_ID_PATTERN.test(orderId)) {
     return res.status(400).json({ message: "Invalid orderId format" });
   }
-  const allowedActions = ["accept", "decline"];
-  if (!allowedActions.includes(action)) {
+  if (!isAssignmentAction(action)) {
     return res.status(400).json({ message: "Invalid action" });
   }
 
@@ -200,50 +433,9 @@ export const respondToAssignment = async (req: Request, res: Response) => {
     }
 
     if (action === "decline") {
-      logInfo("delivery.assign.declined", { orderId });
-
       try {
-        const orderRes = await httpClient.get(
-          `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(orderId)}`,
-        );
-        const order = orderRes.data;
-
-        const newDriver = await findAvailableDriver(
-          delivery.restaurantLocation,
-          order.deliveryAddress.city,
-        );
-
-        if (newDriver) {
-          logInfo("delivery.assign.reassign.found", {
-            orderId,
-            newDriverId: newDriver._id.toString(),
-          });
-
-          // Assign delivery to new driver
-          delivery.driverId = newDriver._id.toString();
-          delivery.acceptStatus = "Pending";
-          delivery.status = "Assigned";
-          await delivery.save();
-
-          await markDriverAvailability(newDriver._id.toString(), false);
-
-          return res.status(200).json({
-            message: "Delivery reassigned to another driver",
-            delivery,
-          });
-        } else {
-          logWarn("delivery.assign.reassign.none", { orderId });
-          // Delivery remains pending without a driver
-          delivery.driverId = undefined;
-          delivery.acceptStatus = "Pending";
-          delivery.status = "Pending";
-          await delivery.save();
-
-          return res.status(200).json({
-            message: "No driver available to reassign. Delivery pending.",
-            delivery,
-          });
-        }
+        const result = await handleDeclinedAssignment(orderId, delivery);
+        return res.status(200).json(result);
       } catch (error) {
         logError("delivery.assign.reassign.error", { orderId }, error as Error);
         return res.status(500).json({
@@ -424,72 +616,14 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Delivery not found" });
     }
 
-    // Step 2: If the status is "Delivered", send an email to the customer
     if (status === "Delivered") {
-      // Fetch the order details to get the userId
-      if (!SAFE_ID_PATTERN.test(updatedDelivery.orderId)) {
-        logWarn("delivery.status.invalidOrderId", {
-          orderId: updatedDelivery.orderId,
-        });
+      const notificationResult =
+        await notifyCustomerOnDeliveredStatus(updatedDelivery);
+      if (notificationResult === "invalid-delivery-record") {
         return res.status(500).json({ message: "Invalid delivery record" });
       }
-      logInfo("delivery.status.fetchOrder.start", {
-        orderId: updatedDelivery.orderId,
-      });
-      const orderRes = await httpClient.get(
-        `${ORDER_SERVICE_BASE_URL}/${encodeURIComponent(updatedDelivery.orderId)}`,
-      );
-      const order = orderRes.data;
-      logInfo("delivery.status.fetchOrder.success", {
-        orderId: updatedDelivery.orderId,
-      });
-
-      if (!SAFE_ID_PATTERN.test(String(order.userId))) {
-        logWarn("delivery.status.invalidUserId", { userId: order.userId });
+      if (notificationResult === "invalid-order-record") {
         return res.status(500).json({ message: "Invalid order record" });
-      }
-      // Fetch the customer details from the user service using userId
-      const userRes = await httpClient.get(
-        `${USER_SERVICE_BASE_URL}/${encodeURIComponent(order.userId)}`,
-      );
-      const user = userRes.data;
-      logInfo("delivery.status.fetchUser.success", { userId: user._id });
-
-      // Email details
-      // const customerEmail = 'lavinduyomith2016@gmail.com';
-      const customerEmail = "dev40.emailtest@gmail.com";
-      const customerName = user.name;
-      const deliveryAddress = order.deliveryAddress;
-      const customerPhone = "+94778964821"; //have to change this to the user phone number
-
-      // Email subject and content
-      const subject = `Your Order with HungerJet has been Delivered!`;
-      const text = `
-        Hello ${customerName},\n\n
-        We are happy to inform you that your order with HungerJet has been successfully delivered to your address: 
-        ${deliveryAddress?.street}, ${deliveryAddress?.city}.\n\n
-        Thank you for choosing HungerJet, and we look forward to serving you again soon!\n\n
-        Best regards,\n
-        HungerJet Team
-      `;
-
-      const message = `Hello, your order has been delivered to ${deliveryAddress?.street}, ${deliveryAddress?.city}. Thank you for choosing HungerJet!`;
-
-      // Send the email to the customer
-      if (customerEmail) {
-        logInfo("delivery.status.notify.email", {
-          to: customerEmail,
-          orderId: updatedDelivery.orderId,
-        });
-        await sendEmail(customerEmail, subject, text);
-      }
-      // Send SMS if the phone number exists
-      if (customerPhone) {
-        logInfo("delivery.status.notify.sms", {
-          to: customerPhone,
-          orderId: updatedDelivery.orderId,
-        });
-        await sendSMS(customerPhone, message);
       }
     }
 
@@ -549,89 +683,11 @@ export const getAvailableOrders = async (req: Request, res: Response) => {
 
     const normalizedPickupLocation = normalizeLocation(driver.pickupLocation);
 
-    // 2️⃣ Backfill missing Delivery records from orders waiting for pickup.
-    // This handles cases where /api/delivery/assign failed earlier and no Delivery rows were created.
-    try {
-      const ordersRes = await httpClient.get(`${ORDER_SERVICE_BASE_URL}`);
-      const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
-      const waitingOrders = allOrders.filter(
-        (order: any) => order?.status === "Waiting for Pickup",
-      );
-
-      let backfilledCount = 0;
-
-      for (const order of waitingOrders) {
-        const orderId = String(order?._id || "");
-        const customerId = String(order?.userId || "");
-        const restaurantId = String(order?.restaurantId || "");
-        const deliveryCity = String(order?.deliveryAddress?.city || "");
-
-        if (
-          !orderId ||
-          !customerId ||
-          !restaurantId ||
-          !deliveryCity ||
-          !SAFE_ID_PATTERN.test(orderId) ||
-          !SAFE_ID_PATTERN.test(customerId) ||
-          !SAFE_ID_PATTERN.test(restaurantId)
-        ) {
-          continue;
-        }
-
-        const existingDelivery = await Delivery.findOne({ orderId });
-        if (existingDelivery) {
-          continue;
-        }
-
-        let restaurantLocation = "";
-        try {
-          const restaurantRes = await httpClient.get(
-            `${RESTAURANTS_SERVICE_URL}/${encodeURIComponent(restaurantId)}`,
-          );
-          restaurantLocation = String(restaurantRes.data?.location || "");
-        } catch (restaurantError) {
-          logWarn(
-            "delivery.available_orders.backfill.restaurant_fetch_failed",
-            {
-              orderId,
-              restaurantId,
-              error: (restaurantError as Error).message,
-            },
-          );
-          continue;
-        }
-
-        if (
-          normalizeLocation(restaurantLocation) !== normalizedPickupLocation
-        ) {
-          continue;
-        }
-
-        await Delivery.create({
-          orderId,
-          customerId,
-          restaurantLocation,
-          deliveryLocation: deliveryCity,
-          status: "Assigned",
-          acceptStatus: "Pending",
-        });
-        backfilledCount += 1;
-      }
-
-      if (backfilledCount > 0) {
-        logInfo("delivery.available_orders.backfill.created", {
-          userId,
-          driverId: driver._id.toString(),
-          count: backfilledCount,
-        });
-      }
-    } catch (backfillError) {
-      logWarn("delivery.available_orders.backfill.failed", {
-        userId,
-        driverId: driver._id.toString(),
-        error: (backfillError as Error).message,
-      });
-    }
+    await backfillDeliveriesForPickupLocation(
+      userId,
+      driver._id.toString(),
+      normalizedPickupLocation,
+    );
 
     // 3️⃣ Find all assigned orders where restaurantLocation matches driver's pickupLocation
     const availableDeliveries = await Delivery.find()

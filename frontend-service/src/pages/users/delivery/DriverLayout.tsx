@@ -55,15 +55,42 @@ const DriverLayout = ({ children }: DriverLayoutProps) => {
     { name: "Dashboard", href: "/driver/dashboard", icon: LayoutDashboard },
     { name: "Profile", href: "/driver/profile", icon: UserCircle },
     { name: "My Deliveries", href: "/driver/mydeliveries", icon: Truck },
-   
   ];
+
+  const getToggleIcon = () => {
+    if (isSidebarOpen) {
+      return <X size={24} />;
+    }
+    return <Menu size={24} />;
+  };
+
+  const getSidebarTransformClass = (): string => {
+    if (isSidebarOpen) {
+      return "translate-x-0";
+    }
+    return "-translate-x-full";
+  };
+
+  const getNavLinkClass = (href: string): string => {
+    if (location.pathname === href) {
+      return "bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white";
+    }
+    return "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700";
+  };
+
+  const getMainContentShiftClass = (): string => {
+    if (isSidebarOpen) {
+      return "md:ml-64";
+    }
+    return "md:ml-0";
+  };
 
   return (
     <div className="min-h-screen bg-neutral-50 dark:bg-neutral-900 text-neutral-800 dark:text-neutral-100">
       {/* Mobile Header */}
       <div className="fixed top-0 left-0 right-0 z-40 md:hidden bg-white dark:bg-neutral-800 border-b border-neutral-200 dark:border-neutral-700 px-4 py-3 flex items-center justify-between">
         <button onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          {isSidebarOpen ? <X size={24} /> : <Menu size={24} />}
+          {getToggleIcon()}
         </button>
         <button onClick={handleLogout} title="Logout">
           <LogOut size={20} />
@@ -72,13 +99,14 @@ const DriverLayout = ({ children }: DriverLayoutProps) => {
 
       {/* Sidebar */}
       <aside
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-neutral-800 border-r border-neutral-200 dark:border-neutral-700 transform transition-transform duration-300 ${
-          isSidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } md:translate-x-0`}
+        className={`fixed inset-y-0 left-0 z-50 w-64 bg-white dark:bg-neutral-800 border-r border-neutral-200 dark:border-neutral-700 transform transition-transform duration-300 ${getSidebarTransformClass()} md:translate-x-0`}
       >
         <div className="h-full flex flex-col">
           <div className="h-16 flex items-center justify-between px-6 border-b">
-            <Link to="/driver/dashboard" className="text-xl font-bold text-indigo-600 dark:text-indigo-400">
+            <Link
+              to="/driver/dashboard"
+              className="text-xl font-bold text-indigo-600 dark:text-indigo-400"
+            >
               {user?.name}
             </Link>
           </div>
@@ -87,11 +115,9 @@ const DriverLayout = ({ children }: DriverLayoutProps) => {
               <Link
                 key={item.name}
                 to={item.href}
-                className={`flex items-center px-4 py-4 rounded-md text-md font-medium transition-colors ${
-                  location.pathname === item.href
-                    ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-600 dark:text-white"
-                    : "text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-neutral-700"
-                }`}
+                className={`flex items-center px-4 py-4 rounded-md text-md font-medium transition-colors ${getNavLinkClass(
+                  item.href,
+                )}`}
               >
                 <item.icon className="mr-3 h-5 w-5" />
                 {item.name}
@@ -102,9 +128,15 @@ const DriverLayout = ({ children }: DriverLayoutProps) => {
             <div className="flex items-center justify-between">
               <div className="text-sm">
                 <div className="font-medium">{user?.name}</div>
-                <div className="text-xs text-neutral-500 dark:text-neutral-400">Driver</div>
+                <div className="text-xs text-neutral-500 dark:text-neutral-400">
+                  Driver
+                </div>
               </div>
-              <button onClick={handleLogout} title="Logout" className="text-neutral-400 hover:text-neutral-600">
+              <button
+                onClick={handleLogout}
+                title="Logout"
+                className="text-neutral-400 hover:text-neutral-600"
+              >
                 <LogOut size={18} />
               </button>
             </div>
@@ -114,9 +146,7 @@ const DriverLayout = ({ children }: DriverLayoutProps) => {
 
       {/* Main Content */}
       <main
-        className={`transition-all duration-300 pt-16 md:pt-16 ${
-          isSidebarOpen ? "md:ml-64" : "md:ml-0"
-        } p-4`}
+        className={`transition-all duration-300 pt-16 md:pt-16 ${getMainContentShiftClass()} p-4`}
       >
         {children}
       </main>
