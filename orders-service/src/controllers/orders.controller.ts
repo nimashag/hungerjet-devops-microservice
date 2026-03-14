@@ -13,23 +13,36 @@ const ensureAuthenticatedUser = (
   req: AuthenticatedRequest,
   res: Response,
   eventKey: string,
-  context?: Record<string, unknown>,
 ): req is AuthenticatedRequest & { user: AuthenticatedUser } => {
   if (req.user) {
     return true;
   }
 
-  if (context) {
-    logWarn(eventKey, {
-      ...context,
-      reason: "No user in request",
-    });
-  } else {
-    logWarn(eventKey, { reason: "No user in request" });
+  const context: Record<string, unknown> = {
+    reason: "No user in request",
+  };
+
+  if (typeof req.params?.id === "string") {
+    context.orderId = req.params.id;
   }
+  if (typeof req.params?.restaurantId === "string") {
+    context.restaurantId = req.params.restaurantId;
+  }
+  if (typeof req.body?.restaurantId === "string") {
+    context.restaurantId = req.body.restaurantId;
+  }
+
+  logWarn(eventKey, context);
   res.status(401).json({ message: "Unauthorized" });
   return false;
 };
+
+const ensureAuthOrReturn = (
+  req: AuthenticatedRequest,
+  res: Response,
+  eventKey: string,
+): req is AuthenticatedRequest & { user: AuthenticatedUser } =>
+  ensureAuthenticatedUser(req, res, eventKey);
 
 export const create = async (req: AuthenticatedRequest, res: Response) => {
   try {
@@ -51,11 +64,7 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
       restaurantId,
     } = req.body;
 
-    if (
-      !ensureAuthenticatedUser(req, res, "order.create.unauthorized", {
-        restaurantId: req.body?.restaurantId,
-      })
-    ) {
+    if (!ensureAuthOrReturn(req, res, "order.create.unauthorized")) {
       return;
     }
 
@@ -165,69 +174,105 @@ export const getAll = async (_req: Request, res: Response) => {
   }
 };
 
-// Update delivery address
-export const updateDeliveryAddress = async (
+const updateOrderField = async (
   req: AuthenticatedRequest,
   res: Response,
+  options: {
+    unauthorizedEvent: string;
+    startEvent: string;
+    missingFieldEvent: string;
+    missingFieldMessage: string;
+    notFoundEvent: string;
+    successEvent: string;
+    errorEvent: string;
+    errorMessage: string;
+    buildUpdatePayload: () => Record<string, unknown>;
+    hasRequiredField: () => boolean;
+  },
 ) => {
+  const {
+    unauthorizedEvent,
+    startEvent,
+    missingFieldEvent,
+    missingFieldMessage,
+    notFoundEvent,
+    successEvent,
+    errorEvent,
+    errorMessage,
+    buildUpdatePayload,
+    hasRequiredField,
+  } = options;
+
   try {
-    if (
-      !ensureAuthenticatedUser(
-        req,
-        res,
-        "order.update_delivery_address.unauthorized",
-        {
-          orderId: req.params.id,
-        },
-      )
-    ) {
+    if (!ensureAuthOrReturn(req, res, unauthorizedEvent)) {
       return;
     }
 
     const { id } = req.params;
-    const { deliveryAddress } = req.body;
 
-    logInfo("order.update_delivery_address.start", {
+    logInfo(startEvent, {
       orderId: id,
       userId: req.user.id,
     });
 
-    if (!deliveryAddress) {
-      logWarn("order.update_delivery_address.missing_address", {
+    if (!hasRequiredField()) {
+      logWarn(missingFieldEvent, {
         orderId: id,
         userId: req.user.id,
       });
-      return res.status(400).json({ message: "Delivery address is required" });
+      return res.status(400).json({ message: missingFieldMessage });
     }
 
-    const updatedOrder = await OrdersService.updateOrder(id, {
-      deliveryAddress,
-    });
+    const updatedOrder = await OrdersService.updateOrder(
+      id,
+      buildUpdatePayload(),
+    );
 
     if (!updatedOrder) {
-      logWarn("order.update_delivery_address.not_found", {
+      logWarn(notFoundEvent, {
         orderId: id,
         userId: req.user.id,
       });
       return res.status(404).json({ message: "Order not found" });
     }
 
-    logInfo("order.update_delivery_address.success", {
+    logInfo(successEvent, {
       orderId: id,
       userId: req.user.id,
     });
-    res.json(updatedOrder);
+    return res.json(updatedOrder);
   } catch (error) {
     logError(
-      "order.update_delivery_address.error",
+      errorEvent,
       {
         orderId: req.params.id,
         userId: req.user?.id,
       },
       error as Error,
     );
-    res.status(500).json({ message: "Internal server error" });
+    return res.status(500).json({ message: errorMessage });
   }
+};
+
+// Update delivery address
+export const updateDeliveryAddress = async (
+  req: AuthenticatedRequest,
+  res: Response,
+) => {
+  const { deliveryAddress } = req.body;
+
+  return updateOrderField(req, res, {
+    unauthorizedEvent: "order.update_delivery_address.unauthorized",
+    startEvent: "order.update_delivery_address.start",
+    missingFieldEvent: "order.update_delivery_address.missing_address",
+    missingFieldMessage: "Delivery address is required",
+    notFoundEvent: "order.update_delivery_address.not_found",
+    successEvent: "order.update_delivery_address.success",
+    errorEvent: "order.update_delivery_address.error",
+    errorMessage: "Internal server error",
+    buildUpdatePayload: () => ({ deliveryAddress }),
+    hasRequiredField: () => Boolean(deliveryAddress),
+  });
 };
 
 // Update special instructions
@@ -235,66 +280,20 @@ export const updateSpecialInstructions = async (
   req: AuthenticatedRequest,
   res: Response,
 ) => {
-  try {
-    if (
-      !ensureAuthenticatedUser(
-        req,
-        res,
-        "order.update_special_instructions.unauthorized",
-        {
-          orderId: req.params.id,
-        },
-      )
-    ) {
-      return;
-    }
+  const { specialInstructions } = req.body;
 
-    const { id } = req.params;
-    const { specialInstructions } = req.body;
-
-    logInfo("order.update_special_instructions.start", {
-      orderId: id,
-      userId: req.user.id,
-    });
-
-    if (specialInstructions === undefined) {
-      logWarn("order.update_special_instructions.missing", {
-        orderId: id,
-        userId: req.user.id,
-      });
-      return res
-        .status(400)
-        .json({ message: "Special instructions are required" });
-    }
-
-    const updatedOrder = await OrdersService.updateOrder(id, {
-      specialInstructions,
-    });
-
-    if (!updatedOrder) {
-      logWarn("order.update_special_instructions.not_found", {
-        orderId: id,
-        userId: req.user.id,
-      });
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    logInfo("order.update_special_instructions.success", {
-      orderId: id,
-      userId: req.user.id,
-    });
-    res.json(updatedOrder);
-  } catch (error) {
-    logError(
-      "order.update_special_instructions.error",
-      {
-        orderId: req.params.id,
-        userId: req.user?.id,
-      },
-      error as Error,
-    );
-    res.status(500).json({ message: "Internal server error" });
-  }
+  return updateOrderField(req, res, {
+    unauthorizedEvent: "order.update_special_instructions.unauthorized",
+    startEvent: "order.update_special_instructions.start",
+    missingFieldEvent: "order.update_special_instructions.missing",
+    missingFieldMessage: "Special instructions are required",
+    notFoundEvent: "order.update_special_instructions.not_found",
+    successEvent: "order.update_special_instructions.success",
+    errorEvent: "order.update_special_instructions.error",
+    errorMessage: "Internal server error",
+    buildUpdatePayload: () => ({ specialInstructions }),
+    hasRequiredField: () => specialInstructions !== undefined,
+  });
 };
 
 //restaurantAdmin
@@ -319,11 +318,7 @@ export const getByRestaurantId = async (req: Request, res: Response) => {
 //restaurantAdmin
 export const update = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (
-      !ensureAuthenticatedUser(req, res, "order.update.unauthorized", {
-        orderId: req.params.id,
-      })
-    ) {
+    if (!ensureAuthOrReturn(req, res, "order.update.unauthorized")) {
       return;
     }
 
@@ -388,11 +383,7 @@ export const update = async (req: AuthenticatedRequest, res: Response) => {
 
 export const deleteOrder = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (
-      !ensureAuthenticatedUser(req, res, "order.delete.unauthorized", {
-        orderId: req.params.id,
-      })
-    ) {
+    if (!ensureAuthOrReturn(req, res, "order.delete.unauthorized")) {
       return;
     }
 
@@ -435,7 +426,7 @@ export const getCurrentUserOrders = async (
   res: Response,
 ) => {
   try {
-    if (!ensureAuthenticatedUser(req, res, "order.get_by_user.unauthorized")) {
+    if (!ensureAuthOrReturn(req, res, "order.get_by_user.unauthorized")) {
       return;
     }
 
@@ -458,9 +449,7 @@ export const createPaymentIntent = async (
   res: Response,
 ) => {
   try {
-    if (
-      !ensureAuthenticatedUser(req, res, "payment.intent.create.unauthorized")
-    ) {
+    if (!ensureAuthOrReturn(req, res, "payment.intent.create.unauthorized")) {
       return;
     }
 
@@ -621,11 +610,7 @@ const handleMarkOrderPaid = async (
   const { eventPrefix, errorMessage, allowDefaultPaymentMethod } = options;
 
   try {
-    if (
-      !ensureAuthenticatedUser(req, res, `${eventPrefix}.unauthorized`, {
-        orderId: req.params.id,
-      })
-    ) {
+    if (!ensureAuthOrReturn(req, res, `${eventPrefix}.unauthorized`)) {
       return;
     }
 
@@ -722,11 +707,7 @@ export const updateOrderStatus = async (
   res: Response,
 ) => {
   try {
-    if (
-      !ensureAuthenticatedUser(req, res, "order.update_status.unauthorized", {
-        orderId: req.params.id,
-      })
-    ) {
+    if (!ensureAuthOrReturn(req, res, "order.update_status.unauthorized")) {
       return;
     }
 

@@ -330,6 +330,17 @@ describe("getOneMenuItem", () => {
     );
     await expect(getOneMenuItem("id")).rejects.toThrow("db fail");
   });
+
+  it("handles missing restaurantId on success path", async () => {
+    const item = {
+      _id: { toString: () => "m2" },
+      name: "Burger",
+      restaurantId: undefined,
+    };
+    (MenuItem.findById as jest.Mock).mockResolvedValueOnce(item);
+    const result = await getOneMenuItem("m2");
+    expect(result).toEqual(item);
+  });
 });
 
 // ─── getMenuItemsByUser ───────────────────────────────────────────────────────
@@ -404,6 +415,43 @@ describe("updateMenuItem", () => {
     expect(existingItem.category).toBe("Main");
   });
 
+  it("updates description and image when provided", async () => {
+    const saved = { _id: { toString: () => "m3" }, name: "Burger" };
+    const existingItem = {
+      name: "Burger",
+      description: "Old",
+      price: 500,
+      category: "Main",
+      image: "old.jpg",
+      save: jest.fn().mockResolvedValueOnce(saved),
+    };
+    (MenuItem.findById as jest.Mock).mockResolvedValueOnce(existingItem);
+
+    await updateMenuItem("m3", {
+      description: "New description",
+      image: "new.jpg",
+    });
+
+    expect(existingItem.description).toBe("New description");
+    expect(existingItem.image).toBe("new.jpg");
+  });
+
+  it("does not overwrite price when price is 0", async () => {
+    const saved = { _id: { toString: () => "m4" }, name: "Burger", price: 500 };
+    const existingItem = {
+      name: "Burger",
+      description: "Desc",
+      price: 500,
+      category: "Main",
+      image: "img.jpg",
+      save: jest.fn().mockResolvedValueOnce(saved),
+    };
+    (MenuItem.findById as jest.Mock).mockResolvedValueOnce(existingItem);
+
+    await updateMenuItem("m4", { price: 0 });
+    expect(existingItem.price).toBe(500);
+  });
+
   it("returns null when item not found", async () => {
     (MenuItem.findById as jest.Mock).mockResolvedValueOnce(null);
     const result = await updateMenuItem("missing", { name: "X" });
@@ -445,5 +493,16 @@ describe("deleteMenuItem", () => {
       new Error("db fail"),
     );
     await expect(deleteMenuItem("id")).rejects.toThrow("db fail");
+  });
+
+  it("handles missing restaurantId on deleted item", async () => {
+    const deleted = {
+      _id: { toString: () => "m2" },
+      name: "Deleted",
+      restaurantId: undefined,
+    };
+    (MenuItem.findByIdAndDelete as jest.Mock).mockResolvedValueOnce(deleted);
+    const result = await deleteMenuItem("m2");
+    expect(result).toEqual(deleted);
   });
 });

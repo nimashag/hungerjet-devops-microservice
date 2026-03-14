@@ -37,6 +37,39 @@ const getValidatedUserId = (req: Request): string | null => {
   return typeof userId === "string" ? userId : null;
 };
 
+type DriverResolverOptions = {
+  unauthorizedLogKey?: string;
+  driverNotFoundLogKey?: string;
+};
+
+async function resolveAuthenticatedDriver(
+  req: Request,
+  res: Response,
+  options: DriverResolverOptions = {},
+): Promise<{ userId: string; driver: any } | null> {
+  const userId = getValidatedUserId(req);
+  if (!userId) {
+    if (options.unauthorizedLogKey) {
+      logWarn(options.unauthorizedLogKey, {
+        reason: "No user in request",
+      });
+    }
+    res.status(401).json({ message: "Unauthorized" });
+    return null;
+  }
+
+  const driver = await Driver.findOne({ userId });
+  if (!driver) {
+    if (options.driverNotFoundLogKey) {
+      logWarn(options.driverNotFoundLogKey, { userId });
+    }
+    res.status(404).json({ message: "Driver not found" });
+    return null;
+  }
+
+  return { userId, driver };
+}
+
 const normalizeLocation = (value: unknown): string =>
   typeof value === "string" ? value.trim().toLowerCase() : "";
 
@@ -441,15 +474,11 @@ export const respondToAssignment = async (req: Request, res: Response) => {
   }
 
   try {
-    const userId = getValidatedUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+    const resolved = await resolveAuthenticatedDriver(req, res);
+    if (!resolved) {
+      return;
     }
-
-    const driver = await Driver.findOne({ userId });
-    if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
-    }
+    const { driver } = resolved;
 
     const delivery = await findDeliveryByOrderId(orderId);
     if (!delivery)
@@ -503,17 +532,12 @@ export const respondToAssignment = async (req: Request, res: Response) => {
 };
 export const getAssignedOrders = async (req: Request, res: Response) => {
   try {
-    const userId = getValidatedUserId(req);
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+    const resolved = await resolveAuthenticatedDriver(req, res);
+    if (!resolved) {
+      return;
     }
+    const { userId, driver } = resolved;
     logInfo("delivery.assigned.list.start", { userId });
-
-    // 1️⃣ Find Driver by userId
-    const driver = await Driver.findOne({ userId });
-    if (!driver) {
-      return res.status(404).json({ message: "Driver not found" });
-    }
 
     logInfo("delivery.assigned.driver.found", {
       userId,
@@ -554,21 +578,16 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
 // ✅ Fetch All My Deliveries (Ongoing + Completed)
 export const getMyDeliveries = async (req: Request, res: Response) => {
   try {
-    const userId = getValidatedUserId(req);
-    if (!userId) {
-      logWarn("delivery.my_deliveries.unauthorized", {
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    const resolved = await resolveAuthenticatedDriver(req, res, {
+      unauthorizedLogKey: "delivery.my_deliveries.unauthorized",
+      driverNotFoundLogKey: "delivery.my_deliveries.driver_not_found",
+    });
+    if (!resolved) {
+      return;
     }
+    const { userId, driver } = resolved;
 
     logInfo("delivery.my_deliveries.start", { userId });
-    const driver = await Driver.findOne({ userId });
-
-    if (!driver) {
-      logWarn("delivery.my_deliveries.driver_not_found", { userId });
-      return res.status(404).json({ message: "Driver not found" });
-    }
 
     logInfo("delivery.my_deliveries.driver.found", {
       userId,
@@ -690,22 +709,16 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
 // ✅ Get available orders matching driver's pickup location
 export const getAvailableOrders = async (req: Request, res: Response) => {
   try {
-    const userId = getValidatedUserId(req);
-    if (!userId) {
-      logWarn("delivery.available_orders.unauthorized", {
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    const resolved = await resolveAuthenticatedDriver(req, res, {
+      unauthorizedLogKey: "delivery.available_orders.unauthorized",
+      driverNotFoundLogKey: "delivery.available_orders.driver_not_found",
+    });
+    if (!resolved) {
+      return;
     }
+    const { userId, driver } = resolved;
 
     logInfo("delivery.available_orders.start", { userId });
-
-    // 1️⃣ Find Driver by userId to get their pickup location
-    const driver = await Driver.findOne({ userId });
-    if (!driver) {
-      logWarn("delivery.available_orders.driver_not_found", { userId });
-      return res.status(404).json({ message: "Driver not found" });
-    }
 
     logInfo("delivery.available_orders.driver_found", {
       userId,

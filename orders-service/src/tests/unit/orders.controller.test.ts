@@ -534,6 +534,25 @@ describe("createPaymentIntent", () => {
       expect.objectContaining({ clientSecret: "secret_1" }),
     );
   });
+
+  it("returns 500 when stripe create throws", async () => {
+    (stripe.paymentIntents.create as jest.Mock).mockRejectedValueOnce(
+      new Error("stripe down"),
+    );
+    const req = mockReq(
+      { id: "u1" },
+      {
+        totalAmount: 10,
+        items: [{ name: "Burger", price: 10 }],
+      },
+    );
+    const res = mockRes();
+    await createPaymentIntent(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(res.json).toHaveBeenCalledWith({
+      message: "Something went wrong while creating payment intent",
+    });
+  });
 });
 
 describe("stripeWebhook", () => {
@@ -576,9 +595,82 @@ describe("stripeWebhook", () => {
     expect(OrdersService.processOrderPayment).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ received: true });
   });
+
+  it("handles succeeded payment intent with no orderId metadata", async () => {
+    (stripe.webhooks.constructEvent as jest.Mock).mockReturnValueOnce({
+      id: "evt_2",
+      type: "payment_intent.succeeded",
+      data: {
+        object: { id: "pi_2", amount: 2500, metadata: {} },
+      },
+    });
+
+    const req: any = {
+      headers: { "stripe-signature": "sig" },
+      body: {},
+      get: jest.fn(() => "application/json"),
+    };
+    const res = mockRes() as any;
+
+    await stripeWebhook(req, res);
+    expect(OrdersService.processOrderPayment).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ received: true });
+  });
+
+  it("continues when processOrderPayment throws during webhook", async () => {
+    (stripe.webhooks.constructEvent as jest.Mock).mockReturnValueOnce({
+      id: "evt_3",
+      type: "payment_intent.succeeded",
+      data: {
+        object: { id: "pi_3", amount: 1500, metadata: { orderId: "o3" } },
+      },
+    });
+    (OrdersService.processOrderPayment as jest.Mock).mockRejectedValueOnce(
+      new Error("processing failed"),
+    );
+
+    const req: any = {
+      headers: { "stripe-signature": "sig" },
+      body: {},
+      get: jest.fn(() => "application/json"),
+    };
+    const res = mockRes() as any;
+
+    await stripeWebhook(req, res);
+    expect(res.json).toHaveBeenCalledWith({ received: true });
+  });
+
+  it("handles unhandled webhook event types", async () => {
+    (stripe.webhooks.constructEvent as jest.Mock).mockReturnValueOnce({
+      id: "evt_4",
+      type: "payment_intent.canceled",
+      data: { object: { id: "pi_4", amount: 1000 } },
+    });
+
+    const req: any = {
+      headers: { "stripe-signature": "sig" },
+      body: {},
+      get: jest.fn(() => "application/json"),
+    };
+    const res = mockRes() as any;
+
+    await stripeWebhook(req, res);
+    expect(res.json).toHaveBeenCalledWith({ received: true });
+  });
 });
 
 describe("markOrderPaid and markOrderAsPaid", () => {
+  it("markOrderPaid returns 401 when unauthenticated", async () => {
+    const req = mockReq(
+      null,
+      { paymentMethod: "Stripe", transactionId: "tx" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
   it("markOrderPaid returns 400 when fields are missing", async () => {
     const req = mockReq(
       { id: "u1" },
@@ -606,6 +698,34 @@ describe("markOrderPaid and markOrderAsPaid", () => {
     expect(res.json).toHaveBeenCalled();
   });
 
+  it("markOrderPaid returns 404 when order not found", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockResolvedValueOnce(
+      null,
+    );
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_404" },
+      { id: "o404" },
+    );
+    const res = mockRes();
+    await markOrderPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it("markOrderPaid returns 500 when service throws", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockRejectedValueOnce(
+      new Error("db fail"),
+    );
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_500" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+
   it("markOrderAsPaid returns 400 when fields are missing", async () => {
     const req = mockReq(
       { id: "u1" },
@@ -631,5 +751,44 @@ describe("markOrderPaid and markOrderAsPaid", () => {
     const res = mockRes();
     await markOrderAsPaid(req, res);
     expect(res.json).toHaveBeenCalled();
+  });
+
+  it("markOrderAsPaid returns 401 when unauthenticated", async () => {
+    const req = mockReq(
+      null,
+      { paymentMethod: "Stripe", transactionId: "tx" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderAsPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+  });
+
+  it("markOrderAsPaid returns 404 when order not found", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockResolvedValueOnce(
+      null,
+    );
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_missing" },
+      { id: "o404" },
+    );
+    const res = mockRes();
+    await markOrderAsPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  it("markOrderAsPaid returns 500 when service throws", async () => {
+    (OrdersService.processOrderPayment as jest.Mock).mockRejectedValueOnce(
+      new Error("db fail"),
+    );
+    const req = mockReq(
+      { id: "u1" },
+      { paymentMethod: "Stripe", transactionId: "tx_500" },
+      { id: "o1" },
+    );
+    const res = mockRes();
+    await markOrderAsPaid(req, res);
+    expect(res.status).toHaveBeenCalledWith(500);
   });
 });
