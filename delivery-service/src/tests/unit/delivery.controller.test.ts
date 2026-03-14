@@ -25,6 +25,14 @@ jest.mock("../../models/driver.model", () => ({
   Driver: { findOne: jest.fn() },
 }));
 
+jest.mock("../../models/delivery.model", () => ({
+  Delivery: {
+    findOne: jest.fn(),
+    find: jest.fn(),
+    create: jest.fn(),
+  },
+}));
+
 jest.mock("../../utils/httpClient", () => ({
   httpClient: { get: jest.fn() },
 }));
@@ -35,6 +43,7 @@ jest.mock("../../services/sms.service", () => ({ sendSMS: jest.fn() }));
 // ─── Imports (after mocks) ───────────────────────────────────────────────────
 import { Request, Response } from "express";
 import { Driver } from "../../models/driver.model";
+import { Delivery } from "../../models/delivery.model";
 import { httpClient } from "../../utils/httpClient";
 import {
   findAvailableDriver,
@@ -56,6 +65,7 @@ import {
   getAssignedOrders,
   getMyDeliveries,
   updateDeliveryStatus,
+  getAvailableOrders,
 } from "../../controllers/delivery.controller";
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -67,10 +77,10 @@ const mockRes = (): Response => {
   return res;
 };
 
-const mockReq = (overrides: Partial<Request> = {}): Request =>
+const mockReq = (overrides: Partial<Request> & { user?: any } = {}): Request =>
   ({ body: {}, params: {}, ...overrides }) as unknown as Request;
 
-beforeEach(() => jest.clearAllMocks());
+beforeEach(() => jest.resetAllMocks());
 
 // ─── assignDriverAutomatically ────────────────────────────────────────────────
 describe("assignDriverAutomatically", () => {
@@ -216,8 +226,14 @@ describe("respondToAssignment", () => {
   });
 
   it("returns 404 when delivery not found", async () => {
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce({
+      _id: { toString: () => "driver1" },
+    });
     (findDeliveryByOrderId as jest.Mock).mockResolvedValueOnce(null);
-    const req = mockReq({ body: { orderId: "order123", action: "accept" } });
+    const req = mockReq({
+      body: { orderId: "order123", action: "accept" },
+      user: { id: "user123" } as any,
+    });
     const res = mockRes();
     await respondToAssignment(req, res);
     expect(res.status).toHaveBeenCalledWith(404);
@@ -230,9 +246,15 @@ describe("respondToAssignment", () => {
       status: "Assigned",
       acceptStatus: "Pending",
     };
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce({
+      _id: { toString: () => "driver1" },
+    });
     (findDeliveryByOrderId as jest.Mock).mockResolvedValueOnce(delivery);
     (updateDeliveryAcceptance as jest.Mock).mockResolvedValueOnce(undefined);
-    const req = mockReq({ body: { orderId: "order123", action: "accept" } });
+    const req = mockReq({
+      body: { orderId: "order123", action: "accept" },
+      user: { id: "user123" } as any,
+    });
     const res = mockRes();
     await respondToAssignment(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -251,6 +273,9 @@ describe("respondToAssignment", () => {
       save: jest.fn().mockResolvedValueOnce(undefined),
     };
     const newDriver = { _id: { toString: () => "driver2" } };
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce({
+      _id: { toString: () => "driver1" },
+    });
     (findDeliveryByOrderId as jest.Mock).mockResolvedValueOnce(delivery);
     (updateDeliveryAcceptance as jest.Mock).mockResolvedValueOnce(undefined);
     (httpClient.get as jest.Mock).mockResolvedValueOnce({
@@ -258,7 +283,10 @@ describe("respondToAssignment", () => {
     });
     (findAvailableDriver as jest.Mock).mockResolvedValueOnce(newDriver);
     (markDriverAvailability as jest.Mock).mockResolvedValueOnce(undefined);
-    const req = mockReq({ body: { orderId: "order123", action: "decline" } });
+    const req = mockReq({
+      body: { orderId: "order123", action: "decline" },
+      user: { id: "user123" } as any,
+    });
     const res = mockRes();
     await respondToAssignment(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -278,13 +306,19 @@ describe("respondToAssignment", () => {
       restaurantLocation: "Colombo",
       save: jest.fn().mockResolvedValueOnce(undefined),
     };
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce({
+      _id: { toString: () => "driver1" },
+    });
     (findDeliveryByOrderId as jest.Mock).mockResolvedValueOnce(delivery);
     (updateDeliveryAcceptance as jest.Mock).mockResolvedValueOnce(undefined);
     (httpClient.get as jest.Mock).mockResolvedValueOnce({
       data: { deliveryAddress: { city: "Galle" } },
     });
     (findAvailableDriver as jest.Mock).mockResolvedValueOnce(null);
-    const req = mockReq({ body: { orderId: "order123", action: "decline" } });
+    const req = mockReq({
+      body: { orderId: "order123", action: "decline" },
+      user: { id: "user123" } as any,
+    });
     const res = mockRes();
     await respondToAssignment(req, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -570,5 +604,73 @@ describe("updateDeliveryStatus", () => {
     const res = mockRes();
     await updateDeliveryStatus(baseReq("Delivered"), res);
     expect(res.status).toHaveBeenCalledWith(500);
+  });
+});
+
+// ─── getAvailableOrders ──────────────────────────────────────────────────────
+describe("getAvailableOrders", () => {
+  it("returns 401 when user object is missing", async () => {
+    const req = {} as any;
+    const res = mockRes();
+    await getAvailableOrders(req, res);
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ message: "Unauthorized" });
+  });
+
+  it("returns 404 when driver is not found", async () => {
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce(null);
+    const req = { user: { id: "user123" } } as any;
+    const res = mockRes();
+    await getAvailableOrders(req, res);
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith({ message: "Driver not found" });
+  });
+
+  it("continues when backfill fails and returns available orders", async () => {
+    (Driver.findOne as jest.Mock).mockResolvedValueOnce({
+      _id: { toString: () => "driver1" },
+      pickupLocation: "Colombo",
+    });
+
+    (httpClient.get as jest.Mock).mockRejectedValueOnce(
+      new Error("orders down"),
+    );
+
+    const deliveries = [
+      {
+        _id: { toString: () => "d1" },
+        orderId: "order123",
+        restaurantLocation: "Colombo",
+        toObject: () => ({ _id: "d1", orderId: "order123" }),
+      },
+    ];
+
+    (Delivery.find as jest.Mock).mockReturnValue({
+      where: jest.fn().mockReturnValue({
+        equals: jest.fn().mockReturnValue({
+          where: jest.fn().mockReturnValue({
+            equals: jest.fn().mockResolvedValue(deliveries),
+          }),
+        }),
+      }),
+    });
+
+    (httpClient.get as jest.Mock).mockResolvedValueOnce({
+      data: {
+        deliveryAddress: { city: "Galle" },
+        paymentStatus: "paid",
+        userId: "u1",
+        restaurantId: "r1",
+        specialInstructions: "",
+      },
+    });
+
+    const req = { user: { id: "user123" } } as any;
+    const res = mockRes();
+    await getAvailableOrders(req, res);
+
+    expect(res.status).toHaveBeenCalledWith(200);
+    const result = (res.json as jest.Mock).mock.calls[0][0];
+    expect(result[0].deliveryAddress).toEqual({ city: "Galle" });
   });
 });

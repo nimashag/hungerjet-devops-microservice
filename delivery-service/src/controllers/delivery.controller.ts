@@ -13,6 +13,7 @@ import {
   updateDeliveryStatusById,
 } from "../services/delivery.service";
 import { Driver } from "../models/driver.model";
+import { Delivery, DeliveryDocument } from "../models/delivery.model";
 import { httpClient } from "../utils/httpClient";
 import { sendSMS } from "../services/sms.service";
 import { logError, logInfo, logWarn } from "../utils/logger";
@@ -22,11 +23,12 @@ dotenv.config();
 
 const RESTAURANTS_SERVICE_URL =
   process.env.RESTAURANTS_SERVICE_URL ||
-  "https://restaurants-service:3001/api/restaurants";
+  process.env.RESTAURANT_SERVICE_URL ||
+  "http://localhost:3001/api/restaurants";
 const ORDER_SERVICE_BASE_URL =
-  process.env.ORDERS_SERVICE_URL || "https://orders-service:3002/api/orders";
+  process.env.ORDERS_SERVICE_URL || "http://localhost:3002/api/orders";
 const USER_SERVICE_BASE_URL =
-  process.env.USERS_SERVICE_URL || "https://users-service:3003/api/auth";
+  process.env.USERS_SERVICE_URL || "http://localhost:3003/api/auth";
 
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
@@ -34,6 +36,9 @@ const getValidatedUserId = (req: Request): string | null => {
   const userId = (req as any).user?.id;
   return typeof userId === "string" ? userId : null;
 };
+
+const normalizeLocation = (value: unknown): string =>
+  typeof value === "string" ? value.trim().toLowerCase() : "";
 
 /** Fetch an order safely; returns null when the orderId fails the
  * SAFE_ID_PATTERN guard or when the remote call throws. */
@@ -159,11 +164,40 @@ export const respondToAssignment = async (req: Request, res: Response) => {
   }
 
   try {
+    const userId = getValidatedUserId(req);
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const driver = await Driver.findOne({ userId });
+    if (!driver) {
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
     const delivery = await findDeliveryByOrderId(orderId);
     if (!delivery)
       return res.status(404).json({ message: "Delivery not found" });
 
+    const currentDriverId = driver._id.toString();
+
+    // Prevent one driver from changing another driver's assignment.
+    if (delivery.driverId && delivery.driverId !== currentDriverId) {
+      return res.status(403).json({
+        message: "This order is assigned to another driver",
+      });
+    }
+
+    // Claim this delivery for the currently authenticated driver on accept.
+    if (action === "accept") {
+      delivery.driverId = currentDriverId;
+      delivery.status = "Assigned";
+    }
+
     await updateDeliveryAcceptance(delivery, action);
+
+    if (action === "accept") {
+      await markDriverAvailability(currentDriverId, false);
+    }
 
     if (action === "decline") {
       logInfo("delivery.assign.declined", { orderId });
@@ -482,6 +516,185 @@ export const updateDeliveryStatus = async (req: Request, res: Response) => {
     );
     res.status(500).json({
       message: "Error updating delivery status",
+      error: error.message,
+    });
+  }
+};
+
+// ✅ Get available orders matching driver's pickup location
+export const getAvailableOrders = async (req: Request, res: Response) => {
+  try {
+    const userId = getValidatedUserId(req);
+    if (!userId) {
+      logWarn("delivery.available_orders.unauthorized", {
+        reason: "No user in request",
+      });
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    logInfo("delivery.available_orders.start", { userId });
+
+    // 1️⃣ Find Driver by userId to get their pickup location
+    const driver = await Driver.findOne({ userId });
+    if (!driver) {
+      logWarn("delivery.available_orders.driver_not_found", { userId });
+      return res.status(404).json({ message: "Driver not found" });
+    }
+
+    logInfo("delivery.available_orders.driver_found", {
+      userId,
+      driverId: driver._id.toString(),
+      pickupLocation: driver.pickupLocation,
+    });
+
+    const normalizedPickupLocation = normalizeLocation(driver.pickupLocation);
+
+    // 2️⃣ Backfill missing Delivery records from orders waiting for pickup.
+    // This handles cases where /api/delivery/assign failed earlier and no Delivery rows were created.
+    try {
+      const ordersRes = await httpClient.get(`${ORDER_SERVICE_BASE_URL}`);
+      const allOrders = Array.isArray(ordersRes.data) ? ordersRes.data : [];
+      const waitingOrders = allOrders.filter(
+        (order: any) => order?.status === "Waiting for Pickup",
+      );
+
+      let backfilledCount = 0;
+
+      for (const order of waitingOrders) {
+        const orderId = String(order?._id || "");
+        const customerId = String(order?.userId || "");
+        const restaurantId = String(order?.restaurantId || "");
+        const deliveryCity = String(order?.deliveryAddress?.city || "");
+
+        if (
+          !orderId ||
+          !customerId ||
+          !restaurantId ||
+          !deliveryCity ||
+          !SAFE_ID_PATTERN.test(orderId) ||
+          !SAFE_ID_PATTERN.test(customerId) ||
+          !SAFE_ID_PATTERN.test(restaurantId)
+        ) {
+          continue;
+        }
+
+        const existingDelivery = await Delivery.findOne({ orderId });
+        if (existingDelivery) {
+          continue;
+        }
+
+        let restaurantLocation = "";
+        try {
+          const restaurantRes = await httpClient.get(
+            `${RESTAURANTS_SERVICE_URL}/${encodeURIComponent(restaurantId)}`,
+          );
+          restaurantLocation = String(restaurantRes.data?.location || "");
+        } catch (restaurantError) {
+          logWarn(
+            "delivery.available_orders.backfill.restaurant_fetch_failed",
+            {
+              orderId,
+              restaurantId,
+              error: (restaurantError as Error).message,
+            },
+          );
+          continue;
+        }
+
+        if (
+          normalizeLocation(restaurantLocation) !== normalizedPickupLocation
+        ) {
+          continue;
+        }
+
+        await Delivery.create({
+          orderId,
+          customerId,
+          restaurantLocation,
+          deliveryLocation: deliveryCity,
+          status: "Assigned",
+          acceptStatus: "Pending",
+        });
+        backfilledCount += 1;
+      }
+
+      if (backfilledCount > 0) {
+        logInfo("delivery.available_orders.backfill.created", {
+          userId,
+          driverId: driver._id.toString(),
+          count: backfilledCount,
+        });
+      }
+    } catch (backfillError) {
+      logWarn("delivery.available_orders.backfill.failed", {
+        userId,
+        driverId: driver._id.toString(),
+        error: (backfillError as Error).message,
+      });
+    }
+
+    // 3️⃣ Find all assigned orders where restaurantLocation matches driver's pickupLocation
+    const availableDeliveries = await Delivery.find()
+      .where("status")
+      .equals("Assigned")
+      .where("acceptStatus")
+      .equals("Pending");
+
+    const locationMatchedDeliveries = availableDeliveries.filter(
+      (delivery: DeliveryDocument) =>
+        normalizeLocation(delivery.restaurantLocation) ===
+        normalizedPickupLocation,
+    );
+
+    logInfo("delivery.available_orders.found", {
+      userId,
+      driverId: driver._id.toString(),
+      count: locationMatchedDeliveries.length,
+    });
+
+    // 4️⃣ Enhance with order details
+    const enhancedOrders = await Promise.all(
+      locationMatchedDeliveries.map(async (delivery: DeliveryDocument) => {
+        const order = await fetchOrderSafe(
+          delivery,
+          "delivery.available_orders.order.invalidId",
+          "delivery.available_orders.order.fetchFailed",
+        );
+        if (!order) {
+          return {
+            ...delivery.toObject(),
+            deliveryAddress: null,
+            customerId: null,
+            restaurantId: null,
+            specialInstructions: "",
+          };
+        }
+        return {
+          ...delivery.toObject(),
+          deliveryAddress: order.deliveryAddress || null,
+          paymentStatus: order.paymentStatus || null,
+          customerId: order.userId || null,
+          restaurantId: order.restaurantId || null,
+          specialInstructions: order.specialInstructions || "",
+        };
+      }),
+    );
+
+    logInfo("delivery.available_orders.success", {
+      userId,
+      driverId: driver._id.toString(),
+      count: enhancedOrders.length,
+    });
+
+    res.status(200).json(enhancedOrders);
+  } catch (error: any) {
+    logError(
+      "delivery.available_orders.error",
+      { userId: (req as any).user?.id },
+      error,
+    );
+    res.status(500).json({
+      message: "Error fetching available orders",
       error: error.message,
     });
   }

@@ -1,9 +1,9 @@
 import { useEffect, useState } from 'react';
-import httpClient from '../../../utils/httpClient';
 import DriverLayout from './DriverLayout';
 import { toast } from 'react-toastify';
 import 'react-toastify/dist/ReactToastify.css';
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import { fetchMyDeliveries, updateDeliveryStatus } from '../../../services/deliveryService';
+import { useNavigate } from 'react-router-dom';
 
 interface Delivery {
   _id: string;
@@ -22,24 +22,28 @@ interface Delivery {
 }
 
 const DriverMyDeliveries = () => {
+  const navigate = useNavigate();
   const [deliveries, setDeliveries] = useState<Delivery[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [modalDeliveryId, setModalDeliveryId] = useState<string | null>(null);
   const [modalAction, setModalAction] = useState<'PickedUp' | 'Delivered' | 'Cancelled' | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
     const fetchDeliveries = async () => {
       try {
-        const token = localStorage.getItem('token');
-        const res = await httpClient.get(`${deliveryUrl}/api/delivery/my-deliveries`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        });
+        setLoading(true);
+        const res = await fetchMyDeliveries();
+        console.log('My Deliveries:', res.data);
         setDeliveries(res.data);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error fetching deliveries', error);
+        if (error.response?.status === 404) {
+          toast.info('Driver profile not found. Please complete registration first.');
+          navigate('/driver/register-profile');
+          return;
+        }
         toast.error('Failed to fetch deliveries.');
       } finally {
         setLoading(false);
@@ -47,7 +51,7 @@ const DriverMyDeliveries = () => {
     };
 
     fetchDeliveries();
-  }, []);
+  }, [navigate]);
 
   const confirmAction = (deliveryId: string, action: 'PickedUp' | 'Delivered' | 'Cancelled') => {
     setModalDeliveryId(deliveryId);
@@ -58,29 +62,29 @@ const DriverMyDeliveries = () => {
   const handleConfirmedUpdate = async () => {
     if (!modalDeliveryId || !modalAction) return;
     try {
-      const token = localStorage.getItem('token');
-      await httpClient.patch(`${deliveryUrl}/api/delivery/delivery/${modalDeliveryId}/status`, 
-        { status: modalAction },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
+      setIsUpdating(true);
+      await updateDeliveryStatus(modalDeliveryId, modalAction);
       toast.success(`Delivery marked as ${modalAction}`);
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
-    } catch (error) {
+      
+      // Update the delivery in the list
+      setDeliveries((prev) =>
+        prev.map((d) =>
+          d._id === modalDeliveryId
+            ? { ...d, status: modalAction as Delivery['status'] }
+            : d
+        )
+      );
+    } catch (error: any) {
       console.error('Error updating delivery status', error);
-      toast.error('Failed to update delivery status.');
+      toast.error(error.response?.data?.message || 'Failed to update delivery status.');
     } finally {
       setShowModal(false);
+      setIsUpdating(false);
     }
   };
 
   const ongoingDeliveries = deliveries.filter(
-    (d) => d.acceptStatus === 'Accepted' 
+    (d) => d.acceptStatus === 'Accepted' && d.status !== 'Delivered' && d.status !== 'Cancelled'
   );
 
   const completedDeliveries = deliveries.filter(
@@ -102,7 +106,13 @@ const DriverMyDeliveries = () => {
     }
   };
 
-  if (loading) return <div className="p-6">Loading deliveries...</div>;
+  if (loading) return (
+    <DriverLayout>
+      <div className="text-center py-8">
+        <p className="text-gray-600">Loading deliveries...</p>
+      </div>
+    </DriverLayout>
+  );
 
   return (
     <DriverLayout>
@@ -111,37 +121,52 @@ const DriverMyDeliveries = () => {
 
         {/* Ongoing Deliveries */}
         <section className="mb-12">
-          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Ongoing Deliveries</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Ongoing Deliveries ({ongoingDeliveries.length})</h2>
           {ongoingDeliveries.length === 0 ? (
-            <p>No ongoing deliveries at the moment.</p>
+            <div className="p-4 bg-gray-50 rounded text-gray-600">
+              No ongoing deliveries at the moment. New deliveries will appear here.
+            </div>
           ) : (
             <div className="grid gap-6">
               {ongoingDeliveries.map((delivery) => (
-                <div key={delivery._id} className="border p-4 rounded shadow-md bg-white">
-                  <p><strong>Restaurant:</strong> {delivery.restaurantLocation}</p>
-                  <p><strong>Customer Delivery Address:</strong> {delivery.deliveryAddress?.street}, {delivery.deliveryAddress?.city}</p>
-                  <p><strong>Status:</strong> {statusBadge(delivery.status)}</p>
+                <div key={delivery._id} className="border-l-4 border-blue-600 bg-white p-6 rounded shadow-md hover:shadow-lg transition">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-sm text-gray-500 font-semibold">PICKUP</p>
+                      <p className="text-lg font-semibold text-gray-800">{delivery.restaurantLocation}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-semibold">STATUS</p>
+                      {statusBadge(delivery.status)}
+                    </div>
+                  </div>
 
-                  <div className="flex gap-3 mt-4">
+                  <div className="mb-4 p-3 bg-gray-50 rounded">
+                    <p className="text-sm text-gray-600">
+                      <strong>Delivery To:</strong> {delivery.deliveryAddress?.street}, {delivery.deliveryAddress?.city || delivery.deliveryLocation}
+                    </p>
+                  </div>
+
+                  <div className="flex gap-3 mt-6 flex-wrap">
                     {delivery.status === 'Assigned' && (
                       <button
                         onClick={() => confirmAction(delivery._id, 'PickedUp')}
-                        className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded"
+                        className="flex-1 min-w-[150px] bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded font-semibold transition"
                       >
-                        Mark as Picked Up
+                        Mark Picked Up
                       </button>
                     )}
                     {delivery.status === 'PickedUp' && (
                       <button
                         onClick={() => confirmAction(delivery._id, 'Delivered')}
-                        className="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded"
+                        className="flex-1 min-w-[150px] bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded font-semibold transition"
                       >
-                        Mark as Delivered
+                        Mark Delivered
                       </button>
                     )}
                     <button
                       onClick={() => confirmAction(delivery._id, 'Cancelled')}
-                      className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded"
+                      className="flex-1 min-w-[150px] bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded font-semibold transition"
                     >
                       Cancel Delivery
                     </button>
@@ -154,16 +179,31 @@ const DriverMyDeliveries = () => {
 
         {/* Completed Deliveries */}
         <section>
-          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Completed Deliveries</h2>
+          <h2 className="text-2xl font-semibold mb-4 text-gray-800">Completed Deliveries ({completedDeliveries.length})</h2>
           {completedDeliveries.length === 0 ? (
-            <p>No completed deliveries yet.</p>
+            <div className="p-4 bg-gray-50 rounded text-gray-600">
+              No completed deliveries yet.
+            </div>
           ) : (
             <div className="grid gap-6">
               {completedDeliveries.map((delivery) => (
-                <div key={delivery._id} className="border p-4 rounded shadow-md bg-gray-100">
-                  <p><strong>Restaurant:</strong> {delivery.restaurantLocation}</p>
-                  <p><strong>Customer Delivery Address:</strong> {delivery.deliveryAddress?.street}, {delivery.deliveryAddress?.city}</p>
-                  <p><strong>Status:</strong> {statusBadge(delivery.status)}</p>
+                <div key={delivery._id} className="border-l-4 border-gray-400 bg-gray-50 p-6 rounded shadow-sm">
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-sm text-gray-500 font-semibold">PICKUP</p>
+                      <p className="text-lg font-semibold text-gray-800">{delivery.restaurantLocation}</p>
+                    </div>
+                    <div>
+                      <p className="text-sm text-gray-500 font-semibold">STATUS</p>
+                      {statusBadge(delivery.status)}
+                    </div>
+                  </div>
+
+                  <div className="p-3 bg-white rounded">
+                    <p className="text-sm text-gray-600">
+                      <strong>Delivery To:</strong> {delivery.deliveryAddress?.street}, {delivery.deliveryAddress?.city || delivery.deliveryLocation}
+                    </p>
+                  </div>
                 </div>
               ))}
             </div>
@@ -173,23 +213,31 @@ const DriverMyDeliveries = () => {
         {/* ✅ Custom Modal */}
         {showModal && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white p-6 rounded shadow-md text-center w-96">
+            <div className="bg-white p-6 rounded shadow-md text-center w-80">
               <h2 className="text-xl font-semibold mb-4 text-gray-800">
-                {modalAction === 'PickedUp' ? 'Confirm Pick Up' : modalAction === 'Delivered' ? 'Confirm Delivery' : 'Cancel Delivery'}
+                {modalAction === 'PickedUp' 
+                  ? '📦 Confirm Pick Up' 
+                  : modalAction === 'Delivered' 
+                  ? '✓ Confirm Delivery' 
+                  : '✕ Cancel Delivery'}
               </h2>
-              <p className="mb-6">Are you sure you want to mark this delivery as <strong>{modalAction}</strong>?</p>
+              <p className="mb-6 text-gray-700">
+                Are you sure you want to mark this delivery as <strong>{modalAction}</strong>?
+              </p>
               <div className="flex gap-4 justify-center">
                 <button
                   onClick={handleConfirmedUpdate}
-                  className="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded"
+                  disabled={isUpdating}
+                  className="bg-green-600 hover:bg-green-700 disabled:bg-gray-400 text-white px-6 py-2 rounded font-semibold transition"
                 >
-                  Yes
+                  {isUpdating ? 'Updating...' : 'Yes, Confirm'}
                 </button>
                 <button
                   onClick={() => setShowModal(false)}
-                  className="bg-gray-400 hover:bg-gray-500 text-white px-6 py-2 rounded"
+                  disabled={isUpdating}
+                  className="bg-gray-400 hover:bg-gray-500 disabled:bg-gray-300 text-white px-6 py-2 rounded font-semibold transition"
                 >
-                  No
+                  Cancel
                 </button>
               </div>
             </div>

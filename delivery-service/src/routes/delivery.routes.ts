@@ -5,6 +5,7 @@ import {
   getAssignedOrders,
   getMyDeliveries,
   updateDeliveryStatus,
+  getAvailableOrders,
 } from "../controllers/delivery.controller";
 import { authenticate } from "../middleware/auth"; // <--- correct path
 import { authorizeRoles } from "../middleware/authorize"; // <--- correct path
@@ -37,6 +38,14 @@ router.get(
   authenticate,
   authorizeRoles("deliveryPersonnel"),
   getAssignedOrders,
+);
+
+// ✅ Get available orders matching driver's pickup location
+router.get(
+  "/available-orders",
+  authenticate,
+  authorizeRoles("deliveryPersonnel"),
+  getAvailableOrders,
 );
 
 // ✅ Fetch all deliveries for my dashboard

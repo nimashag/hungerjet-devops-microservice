@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import httpClient from '../../../utils/httpClient';
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import { registerDriverProfile } from '../../../services/deliveryService';
+import { toast } from 'react-toastify';
 
 const DriverProfileRegister = () => {
   const [pickupLocation, setPickupLocation] = useState('');
@@ -10,21 +10,36 @@ const DriverProfileRegister = () => {
   const [mobileNumber, setMobileNumber] = useState('');
   const [profileImage, setProfileImage] = useState<File | null>(null);
   const [isAvailable, setIsAvailable] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
 
   const navigate = useNavigate();
-  // const DRIVER_API = 'http://localhost:3004'; // Driver service
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     const token = localStorage.getItem('token');
     if (!token) {
-      alert('No token found. Please login again.');
+      toast.error('No token found. Please login again.');
       navigate('/login/delivery');
       return;
     }
 
+    // Validation
+    if (!pickupLocation.trim()) {
+      toast.error('Pickup location is required');
+      return;
+    }
+    if (!vehicleRegNumber.trim()) {
+      toast.error('Vehicle registration number is required');
+      return;
+    }
+    if (!mobileNumber.trim()) {
+      toast.error('Mobile number is required');
+      return;
+    }
+
     try {
+      setIsLoading(true);
       const formData = new FormData();
       formData.append('pickupLocation', pickupLocation);
       formData.append('deliveryLocations', deliveryLocations); 
@@ -36,18 +51,14 @@ const DriverProfileRegister = () => {
         formData.append('profileImage', profileImage);
       }
 
-      await httpClient.post(`${deliveryUrl}/api/drivers/register`, formData, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          'Content-Type': 'multipart/form-data',
-        },
-      });
-
-      alert('Driver profile created successfully!');
+      await registerDriverProfile(formData);
+      toast.success('Driver profile created successfully!');
       navigate('/driver/dashboard');
     } catch (error: any) {
       console.error('Error creating driver profile:', error);
-      alert(error.response?.data?.message || 'Failed to create driver profile.');
+      toast.error(error.response?.data?.message || 'Failed to create driver profile.');
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -73,16 +84,16 @@ const DriverProfileRegister = () => {
                 className="w-full px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
                 required
               />
+              <p className="text-xs text-gray-400 mt-1">📍 This is where you'll pick up orders from restaurants</p>
             </div>
 
             <div>
               <input
                 type="text"
-                placeholder="Delivery Locations (comma separated)"
+                placeholder="Service Areas (comma separated, optional)"
                 value={deliveryLocations}
                 onChange={(e) => setDeliveryLocations(e.target.value)}
                 className="w-full px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
-                required
               />
             </div>
 
@@ -115,6 +126,7 @@ const DriverProfileRegister = () => {
                 onChange={(e) => setProfileImage(e.target.files?.[0] || null)}
                 className="w-full px-4 py-3 border rounded-full focus:outline-none focus:ring-2 focus:ring-green-500"
               />
+              <p className="text-xs text-gray-400 mt-1">Profile photo (optional)</p>
             </div>
 
             <div className="flex items-center space-x-3">
@@ -124,15 +136,16 @@ const DriverProfileRegister = () => {
                 onChange={(e) => setIsAvailable(e.target.checked)}
                 className="h-5 w-5 text-green-500"
               />
-              <span className="text-gray-700 text-sm">Available for delivery</span>
+              <span className="text-gray-700 text-sm">Available for delivery orders</span>
             </div>
 
-            <div className="relative w-full mt-2">
+            <div className="relative w-full mt-6">
               <button
                 type="submit"
-                className="w-full relative bg-black text-white py-3 rounded-full overflow-hidden z-10 hover:bg-green-600 transition"
+                disabled={isLoading}
+                className="w-full relative bg-black hover:bg-green-600 disabled:bg-gray-400 text-white py-3 rounded-full overflow-hidden z-10 transition font-semibold"
               >
-                Save Profile
+                {isLoading ? 'Creating Profile...' : 'Save Profile'}
               </button>
             </div>
           </form>
@@ -141,7 +154,7 @@ const DriverProfileRegister = () => {
             Not ready yet?{' '}
             <span
               onClick={() => navigate('/driver/dashboard')}
-              className="text-green-600 hover:underline cursor-pointer"
+              className="text-green-600 hover:underline cursor-pointer font-semibold"
             >
               Skip for now
             </span>

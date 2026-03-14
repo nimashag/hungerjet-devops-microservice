@@ -1,109 +1,252 @@
 import DriverLayout from "./DriverLayout";
 import { useState, useEffect } from "react";
-import httpClient from "../../../utils/httpClient";
-import { apiBase, userUrl, restaurantUrl, orderUrl, deliveryUrl } from "../../../api";
+import { getDriverProfile, updateDriverProfile } from "../../../services/deliveryService";
+import { toast } from "react-toastify";
+import { useNavigate } from "react-router-dom";
+
+interface DriverProfileData {
+  pickupLocation: string;
+  deliveryLocations: string[];
+  vehicleRegNumber?: string;
+  mobileNumber?: string;
+  isAvailable: boolean;
+}
 
 const DriverProfile = () => {
-  const [pickupLocation, setPickupLocation] = useState("");
-  const [deliveryLocations, setDeliveryLocations] = useState("");
-  const [isAvailable, setIsAvailable] = useState(false);
-
-  // const API_BASE = "http://localhost:3004";
+  const navigate = useNavigate();
+  const [profile, setProfile] = useState<DriverProfileData>({
+    pickupLocation: "",
+    deliveryLocations: [],
+    vehicleRegNumber: "",
+    mobileNumber: "",
+    isAvailable: false,
+  });
+  const [isEditing, setIsEditing] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    const fetchDriverProfile = async () => {
-      const token = localStorage.getItem("token");
-      console.log("Driver Token:", token);
-
-      if (!token) {
-        console.error("No token found!");
-        return;
-      }
-
+    const fetchProfile = async () => {
       try {
-        const res = await httpClient.get(`${deliveryUrl}/api/drivers/me`, {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
+        setLoading(true);
+        const res = await getDriverProfile();
+        console.log("Driver Profile:", res.data);
+        setProfile({
+          pickupLocation: res.data.pickupLocation || "",
+          deliveryLocations: Array.isArray(res.data.deliveryLocations) 
+            ? res.data.deliveryLocations 
+            : [],
+          vehicleRegNumber: res.data.vehicleRegNumber || "",
+          mobileNumber: res.data.mobileNumber || "",
+          isAvailable: res.data.isAvailable || false,
         });
-        setPickupLocation(res.data.pickupLocation);
-        setDeliveryLocations(res.data.deliveryLocations.join(", "));
-        setIsAvailable(res.data.isAvailable);
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error fetching driver profile", error);
+        if (error.response?.status === 404) {
+          toast.info("Driver profile not found. Please complete registration first.");
+          navigate("/driver/register-profile");
+          return;
+        }
+        toast.error("Failed to load your profile");
+      } finally {
+        setLoading(false);
       }
     };
 
-    fetchDriverProfile();
+    fetchProfile();
   }, []);
+
+  const handleChange = (field: string, value: any) => {
+    if (field === "deliveryLocations") {
+      setProfile({
+        ...profile,
+        [field]: value
+          .split(",")
+          .map((loc: string) => loc.trim())
+          .filter((loc: string) => loc !== ""),
+      });
+    } else {
+      setProfile({
+        ...profile,
+        [field]: value,
+      });
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const token = localStorage.getItem("token");
-    console.log("Driver Token:", token);
-
-    if (!token) {
-      console.error("No token found!");
+    
+    if (!profile.pickupLocation.trim()) {
+      toast.error("Pickup location is required");
       return;
     }
 
     try {
-      const deliveryArray = deliveryLocations
-        .split(",")
-        .map((loc) => loc.trim());
-      await httpClient.patch(
-        `${deliveryUrl}/api/drivers/me`,
-        {
-          pickupLocation,
-          deliveryLocations: deliveryArray,
-          isAvailable,
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-      alert("Profile updated successfully!");
-    } catch (error) {
+      setIsSaving(true);
+      await updateDriverProfile({
+        pickupLocation: profile.pickupLocation,
+        deliveryLocations: profile.deliveryLocations,
+        isAvailable: profile.isAvailable,
+      });
+      toast.success("Profile updated successfully!");
+      setIsEditing(false);
+    } catch (error: any) {
       console.error("Error updating profile", error);
-      alert("Failed to update profile.");
+      if (error.response?.status === 404) {
+        toast.info("Driver profile not found. Please complete registration first.");
+        navigate("/driver/register-profile");
+        return;
+      }
+      toast.error(error.response?.data?.message || "Failed to update profile");
+    } finally {
+      setIsSaving(false);
     }
   };
 
+  if (loading) {
+    return (
+      <DriverLayout>
+        <div className="text-center py-8">
+          <p className="text-gray-600">Loading your profile...</p>
+        </div>
+      </DriverLayout>
+    );
+  }
+
   return (
     <DriverLayout>
-      <h2 className="text-2xl font-bold mb-4">Driver Profile</h2>
-      <form onSubmit={handleSubmit} className="space-y-4">
-        <div>
-          <label>Pickup Location</label>
-          <input
-            value={pickupLocation}
-            onChange={(e) => setPickupLocation(e.target.value)}
-            className="border p-2 w-full"
-          />
+      <div className="max-w-2xl mx-auto p-6">
+        <h1 className="text-3xl font-bold mb-6 text-indigo-600">Driver Profile</h1>
+
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-xl font-semibold text-gray-800">Your Information</h2>
+            {!isEditing && (
+              <button
+                onClick={() => setIsEditing(true)}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white px-4 py-2 rounded"
+              >
+                Edit Profile
+              </button>
+            )}
+          </div>
+
+          {!isEditing ? (
+            // View Mode
+            <div className="space-y-6">
+              <div className="border-b pb-4">
+                <p className="text-sm text-gray-500 font-semibold">PICKUP LOCATION</p>
+                <p className="text-lg text-gray-800 mt-2">{profile.pickupLocation || "Not set"}</p>
+                <p className="text-xs text-gray-400 mt-1">📍 Orders will only show if their pickup location matches this</p>
+              </div>
+
+              <div className="border-b pb-4">
+                <p className="text-sm text-gray-500 font-semibold">SERVICE AREAS</p>
+                <div className="mt-2">
+                  {profile.deliveryLocations.length > 0 ? (
+                    <div className="flex flex-wrap gap-2">
+                      {profile.deliveryLocations.map((loc, idx) => (
+                        <span 
+                          key={idx} 
+                          className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-full text-sm"
+                        >
+                          {loc}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-gray-600">No service areas defined</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="border-b pb-4">
+                <p className="text-sm text-gray-500 font-semibold">AVAILABILITY</p>
+                <p className="text-lg mt-2">
+                  <span className={`px-3 py-1 rounded-full text-white ${profile.isAvailable ? 'bg-green-500' : 'bg-red-500'}`}>
+                    {profile.isAvailable ? '✓ Available' : '✗ Unavailable'}
+                  </span>
+                </p>
+              </div>
+
+              <div className="border-b pb-4">
+                <p className="text-sm text-gray-500 font-semibold">VEHICLE</p>
+                <p className="text-lg text-gray-800 mt-2">{profile.vehicleRegNumber || "Not set"}</p>
+              </div>
+
+              <div>
+                <p className="text-sm text-gray-500 font-semibold">MOBILE NUMBER</p>
+                <p className="text-lg text-gray-800 mt-2">{profile.mobileNumber || "Not set"}</p>
+              </div>
+            </div>
+          ) : (
+            // Edit Mode
+            <form onSubmit={handleSubmit} className="space-y-6">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Pickup Location *</label>
+                <input
+                  type="text"
+                  value={profile.pickupLocation}
+                  onChange={(e) => handleChange("pickupLocation", e.target.value)}
+                  placeholder="e.g., Malabe, Colombo, Kandy"
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">This location determines which orders you'll see</p>
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Service Areas (comma separated)</label>
+                <input
+                  type="text"
+                  value={profile.deliveryLocations.join(", ")}
+                  onChange={(e) => handleChange("deliveryLocations", e.target.value)}
+                  placeholder="e.g., Colombo City, Nugegoda, Maharagama"
+                  className="w-full px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Availability</label>
+                <div className="flex items-center space-x-3">
+                  <input
+                    type="checkbox"
+                    checked={profile.isAvailable}
+                    onChange={(e) => handleChange("isAvailable", e.target.checked)}
+                    className="h-5 w-5 text-indigo-500 rounded focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  />
+                  <span className="text-gray-700">Available to receive delivery orders</span>
+                </div>
+              </div>
+
+              <div className="flex gap-4 pt-6">
+                <button
+                  type="submit"
+                  disabled={isSaving}
+                  className="flex-1 bg-indigo-600 hover:bg-indigo-700 disabled:bg-gray-400 text-white font-semibold py-2 rounded-lg transition"
+                >
+                  {isSaving ? 'Saving...' : 'Save Changes'}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsEditing(false)}
+                  className="flex-1 bg-gray-300 hover:bg-gray-400 text-gray-800 font-semibold py-2 rounded-lg transition"
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          )}
         </div>
-        <div>
-          <label>Delivery Locations (comma separated)</label>
-          <input
-            value={deliveryLocations}
-            onChange={(e) => setDeliveryLocations(e.target.value)}
-            className="border p-2 w-full"
-          />
+
+        {/* Info Box */}
+        <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+          <p className="text-sm text-blue-800">
+            <strong>💡 Tip:</strong> Update your pickup location to areas where restaurants are located. Only orders 
+            from restaurants at your pickup location will appear in "Available Orders".
+          </p>
         </div>
-        <div>
-          <label>Availability</label>
-          <input
-            type="checkbox"
-            checked={isAvailable}
-            onChange={(e) => setIsAvailable(e.target.checked)}
-            className="ml-2"
-          />
-        </div>
-        <button type="submit" className="bg-blue-600 text-white p-2 rounded">
-          Save
-        </button>
-      </form>
+      </div>
     </DriverLayout>
   );
 };
