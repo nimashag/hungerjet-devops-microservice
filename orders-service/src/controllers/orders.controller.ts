@@ -7,6 +7,30 @@ import { logError, logInfo, logWarn } from "../utils/logger";
 
 const SAFE_ID_PATTERN = /^[a-zA-Z0-9_-]+$/;
 
+type AuthenticatedUser = NonNullable<AuthenticatedRequest["user"]>;
+
+const ensureAuthenticatedUser = (
+  req: AuthenticatedRequest,
+  res: Response,
+  eventKey: string,
+  context?: Record<string, unknown>,
+): req is AuthenticatedRequest & { user: AuthenticatedUser } => {
+  if (req.user) {
+    return true;
+  }
+
+  if (context) {
+    logWarn(eventKey, {
+      ...context,
+      reason: "No user in request",
+    });
+  } else {
+    logWarn(eventKey, { reason: "No user in request" });
+  }
+  res.status(401).json({ message: "Unauthorized" });
+  return false;
+};
+
 export const create = async (req: AuthenticatedRequest, res: Response) => {
   try {
     logInfo("order.create.start", {
@@ -27,12 +51,12 @@ export const create = async (req: AuthenticatedRequest, res: Response) => {
       restaurantId,
     } = req.body;
 
-    if (!req.user) {
-      logWarn("order.create.unauthorized", {
+    if (
+      !ensureAuthenticatedUser(req, res, "order.create.unauthorized", {
         restaurantId: req.body?.restaurantId,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+      })
+    ) {
+      return;
     }
 
     if (
@@ -147,12 +171,17 @@ export const updateDeliveryAddress = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) {
-      logWarn("order.update_delivery_address.unauthorized", {
-        orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    if (
+      !ensureAuthenticatedUser(
+        req,
+        res,
+        "order.update_delivery_address.unauthorized",
+        {
+          orderId: req.params.id,
+        },
+      )
+    ) {
+      return;
     }
 
     const { id } = req.params;
@@ -207,12 +236,17 @@ export const updateSpecialInstructions = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) {
-      logWarn("order.update_special_instructions.unauthorized", {
-        orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    if (
+      !ensureAuthenticatedUser(
+        req,
+        res,
+        "order.update_special_instructions.unauthorized",
+        {
+          orderId: req.params.id,
+        },
+      )
+    ) {
+      return;
     }
 
     const { id } = req.params;
@@ -285,12 +319,12 @@ export const getByRestaurantId = async (req: Request, res: Response) => {
 //restaurantAdmin
 export const update = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!req.user) {
-      logWarn("order.update.unauthorized", {
+    if (
+      !ensureAuthenticatedUser(req, res, "order.update.unauthorized", {
         orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+      })
+    ) {
+      return;
     }
 
     const fieldsToUpdate = Object.keys(req.body).filter(
@@ -354,12 +388,12 @@ export const update = async (req: AuthenticatedRequest, res: Response) => {
 
 export const deleteOrder = async (req: AuthenticatedRequest, res: Response) => {
   try {
-    if (!req.user) {
-      logWarn("order.delete.unauthorized", {
+    if (
+      !ensureAuthenticatedUser(req, res, "order.delete.unauthorized", {
         orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+      })
+    ) {
+      return;
     }
 
     logInfo("order.delete.start", {
@@ -401,11 +435,8 @@ export const getCurrentUserOrders = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) {
-      logWarn("order.get_by_user.unauthorized", {
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!ensureAuthenticatedUser(req, res, "order.get_by_user.unauthorized")) {
+      return;
     }
 
     logInfo("order.get_by_user.start", { userId: req.user.id });
@@ -427,11 +458,10 @@ export const createPaymentIntent = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) {
-      logWarn("payment.intent.create.unauthorized", {
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+    if (
+      !ensureAuthenticatedUser(req, res, "payment.intent.create.unauthorized")
+    ) {
+      return;
     }
 
     const { totalAmount, items = [] } = req.body;
@@ -591,12 +621,12 @@ const handleMarkOrderPaid = async (
   const { eventPrefix, errorMessage, allowDefaultPaymentMethod } = options;
 
   try {
-    if (!req.user) {
-      logWarn(`${eventPrefix}.unauthorized`, {
+    if (
+      !ensureAuthenticatedUser(req, res, `${eventPrefix}.unauthorized`, {
         orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+      })
+    ) {
+      return;
     }
 
     const { id } = req.params;
@@ -692,12 +722,12 @@ export const updateOrderStatus = async (
   res: Response,
 ) => {
   try {
-    if (!req.user) {
-      logWarn("order.update_status.unauthorized", {
+    if (
+      !ensureAuthenticatedUser(req, res, "order.update_status.unauthorized", {
         orderId: req.params.id,
-        reason: "No user in request",
-      });
-      return res.status(401).json({ message: "Unauthorized" });
+      })
+    ) {
+      return;
     }
 
     const { status } = req.body;

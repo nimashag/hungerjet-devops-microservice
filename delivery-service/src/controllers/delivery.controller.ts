@@ -274,6 +274,50 @@ async function backfillDeliveriesForPickupLocation(
   }
 }
 
+type DeliveryEnhancementMode = "address-only" | "full";
+
+function buildEnhancedDelivery(
+  delivery: any,
+  order: Record<string, any> | null,
+  mode: DeliveryEnhancementMode,
+) {
+  const base = delivery.toObject();
+
+  if (!order) {
+    if (mode === "full") {
+      return {
+        ...base,
+        deliveryAddress: null,
+        paymentStatus: null,
+        customerId: null,
+        restaurantId: null,
+        specialInstructions: "",
+      };
+    }
+
+    return {
+      ...base,
+      deliveryAddress: null,
+    };
+  }
+
+  if (mode === "full") {
+    return {
+      ...base,
+      deliveryAddress: order.deliveryAddress || null,
+      paymentStatus: order.paymentStatus || null,
+      customerId: order.userId || null,
+      restaurantId: order.restaurantId || null,
+      specialInstructions: order.specialInstructions || "",
+    };
+  }
+
+  return {
+    ...base,
+    deliveryAddress: order.deliveryAddress || null,
+  };
+}
+
 /** Fetch an order safely; returns null when the orderId fails the
  * SAFE_ID_PATTERN guard or when the remote call throws. */
 async function fetchOrderSafe(
@@ -489,15 +533,7 @@ export const getAssignedOrders = async (req: Request, res: Response) => {
           "delivery.assigned.order.invalidId",
           "delivery.assigned.order.fetchFailed",
         );
-        if (!order) return { ...delivery.toObject(), deliveryAddress: null };
-        return {
-          ...delivery.toObject(),
-          deliveryAddress: order.deliveryAddress || null,
-          paymentStatus: order.paymentStatus || null,
-          customerId: order.userId || null,
-          restaurantId: order.restaurantId || null,
-          specialInstructions: order.specialInstructions || "",
-        };
+        return buildEnhancedDelivery(delivery, order, "full");
       }),
     );
 
@@ -554,11 +590,7 @@ export const getMyDeliveries = async (req: Request, res: Response) => {
           "delivery.my_deliveries.order.invalidId",
           "delivery.my_deliveries.order.fetch_failed",
         );
-        if (!order) return { ...delivery.toObject(), deliveryAddress: null };
-        return {
-          ...delivery.toObject(),
-          deliveryAddress: order.deliveryAddress || null,
-        };
+        return buildEnhancedDelivery(delivery, order, "address-only");
       }),
     );
 
@@ -716,23 +748,7 @@ export const getAvailableOrders = async (req: Request, res: Response) => {
           "delivery.available_orders.order.invalidId",
           "delivery.available_orders.order.fetchFailed",
         );
-        if (!order) {
-          return {
-            ...delivery.toObject(),
-            deliveryAddress: null,
-            customerId: null,
-            restaurantId: null,
-            specialInstructions: "",
-          };
-        }
-        return {
-          ...delivery.toObject(),
-          deliveryAddress: order.deliveryAddress || null,
-          paymentStatus: order.paymentStatus || null,
-          customerId: order.userId || null,
-          restaurantId: order.restaurantId || null,
-          specialInstructions: order.specialInstructions || "",
-        };
+        return buildEnhancedDelivery(delivery, order, "full");
       }),
     );
 
