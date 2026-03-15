@@ -1,0 +1,175 @@
+openapi: 3.0.3
+info:
+  title: Orders Service API
+  version: 1.0.0
+  description: Order lifecycle and payment endpoints.
+servers:
+  - url: http://localhost:3001
+    description: Local direct service access
+  - url: http://localhost:31000
+    description: API gateway (Nginx)
+tags:
+  - name: Health
+  - name: Orders
+  - name: Payments
+paths:
+  /api/orders/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Service health payload
+  /api/orders:
+    post:
+      tags: [Orders]
+      summary: Create order
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Order created
+    get:
+      tags: [Orders]
+      summary: List all orders
+      responses:
+        '200':
+          description: Order list
+  /api/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order found
+        '404':
+          description: Not found
+    put:
+      tags: [Orders]
+      summary: Update order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order updated
+    delete:
+      tags: [Orders]
+      summary: Delete order
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order deleted
+  /api/orders/restaurant/{restaurantId}:
+    get:
+      tags: [Orders]
+      summary: Get orders by restaurant id
+      parameters:
+        - in: path
+          name: restaurantId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order list for restaurant
+  /api/orders/{id}/delivery-address:
+    patch:
+      tags: [Orders]
+      summary: Update delivery address
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Address updated
+  /api/orders/{id}/special-instructions:
+    patch:
+      tags: [Orders]
+      summary: Update special instructions
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Instructions updated
+  /api/orders/{id}/mark-paid:
+    patch:
+      tags: [Payments]
+      summary: Mark order as paid
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order marked as paid
+  /api/orders/{id}/status:
+    patch:
+      tags: [Orders]
+      summary: Update order status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status updated
+  /api/orders/create-payment-intent:
+    post:
+      tags: [Payments]
+      summary: Create Stripe payment intent
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Payment intent created
+  /api/orders/webhook:
+    post:
+      tags: [Payments]
+      summary: Stripe webhook callback
+      responses:
+        '200':
+          description: Webhook handled
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

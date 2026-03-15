@@ -1,0 +1,200 @@
+openapi: 3.0.3
+info:
+  title: Restaurants Service API
+  version: 1.0.0
+  description: Restaurant and menu-item management endpoints.
+servers:
+  - url: http://localhost:3002
+    description: Local direct service access
+  - url: http://localhost:31000
+    description: API gateway (Nginx)
+tags:
+  - name: Health
+  - name: Restaurants
+  - name: Menu
+paths:
+  /api/restaurants/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      responses:
+        '200':
+          description: Service health payload
+  /api/restaurants:
+    post:
+      tags: [Restaurants]
+      summary: Create restaurant
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Restaurant created
+    get:
+      tags: [Restaurants]
+      summary: List restaurants
+      responses:
+        '200':
+          description: Restaurant list
+  /api/restaurants/my:
+    get:
+      tags: [Restaurants]
+      summary: Get restaurant for current owner
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Restaurant profile
+  /api/restaurants/{id}:
+    get:
+      tags: [Restaurants]
+      summary: Get restaurant by id
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurant found
+    put:
+      tags: [Restaurants]
+      summary: Update restaurant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurant updated
+    delete:
+      tags: [Restaurants]
+      summary: Delete restaurant
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Restaurant deleted
+  /api/restaurants/{id}/availability:
+    patch:
+      tags: [Restaurants]
+      summary: Toggle restaurant availability
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Availability updated
+  /api/restaurants/{id}/menu-items:
+    post:
+      tags: [Menu]
+      summary: Add menu item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '201':
+          description: Menu item created
+    get:
+      tags: [Menu]
+      summary: List menu items by restaurant
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Menu items list
+  /api/restaurants/my/menu-items:
+    get:
+      tags: [Menu]
+      summary: List menu items for current owner
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Owner menu items list
+  /api/restaurants/{id}/menu-items/{itemId}:
+    get:
+      tags: [Menu]
+      summary: Get menu item
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Menu item found
+    put:
+      tags: [Menu]
+      summary: Update menu item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Menu item updated
+    delete:
+      tags: [Menu]
+      summary: Delete menu item
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: itemId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Menu item deleted
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

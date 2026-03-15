@@ -9,8 +9,10 @@ Microservices demo project using Node.js, Docker Compose, and Nginx.
 - [CI/CD Setup Guide](CI-CD-SETUP.md)
 - [Testing Guide](README-TESTING.md)
 - [SonarQube CI/CD Guide](README-SONARQUBE-CICD.md)
-- Repository: https://github.com/nimashag/hungerjet-devops-microservice
-
+- [Users API Contract](users-service/docs/openapi.yaml)
+- [Orders API Contract](orders-service/docs/openapi.yaml)
+- [Restaurants API Contract](restaurants-service/docs/openapi.yaml)
+- [Delivery API Contract](delivery-service/docs/openapi.yaml)
 ---
 
 ## Prerequisites
@@ -55,6 +57,20 @@ Nginx gateway runs at:
 ---
 
 ## Test APIs
+
+Swagger docs endpoints:
+
+- Users: http://localhost:31000/api/auth/docs
+- Orders: http://localhost:31000/api/orders/docs
+- Restaurants: http://localhost:31000/api/restaurants/docs
+- Delivery: http://localhost:31000/api/delivery/docs
+
+Raw OpenAPI YAML endpoints:
+
+- Users: http://localhost:31000/api/auth/openapi.yaml
+- Orders: http://localhost:31000/api/orders/openapi.yaml
+- Restaurants: http://localhost:31000/api/restaurants/openapi.yaml
+- Delivery: http://localhost:31000/api/delivery/openapi.yaml
 
 ### Restaurants API
 

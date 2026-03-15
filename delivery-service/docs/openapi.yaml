@@ -1,0 +1,113 @@
+openapi: 3.0.3
+info:
+  title: Delivery Service API
+  version: 1.0.0
+  description: Driver profile and delivery assignment endpoints.
+servers:
+  - url: http://localhost:3004
+    description: Local direct service access
+  - url: http://localhost:31000
+    description: API gateway (Nginx)
+tags:
+  - name: Delivery
+  - name: Drivers
+paths:
+  /api/drivers/register:
+    post:
+      tags: [Drivers]
+      summary: Register delivery driver profile
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Driver profile created
+  /api/drivers/me:
+    get:
+      tags: [Drivers]
+      summary: Get current driver profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Driver profile
+    patch:
+      tags: [Drivers]
+      summary: Update current driver profile
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Driver updated
+  /api/delivery/health:
+    get:
+      tags: [Delivery]
+      summary: Health check
+      responses:
+        '200':
+          description: Service health payload
+  /api/delivery/assign:
+    post:
+      tags: [Delivery]
+      summary: Assign driver automatically
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Driver assigned
+  /api/delivery/respond:
+    post:
+      tags: [Delivery]
+      summary: Driver responds to assignment
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assignment response recorded
+  /api/delivery/assigned-orders:
+    get:
+      tags: [Delivery]
+      summary: Get assigned orders for current driver
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Assigned orders list
+  /api/delivery/available-orders:
+    get:
+      tags: [Delivery]
+      summary: Get available orders for current driver
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Available orders list
+  /api/delivery/my-deliveries:
+    get:
+      tags: [Delivery]
+      summary: Get my deliveries
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Deliveries list
+  /api/delivery/delivery/{deliveryId}/status:
+    patch:
+      tags: [Delivery]
+      summary: Update delivery status
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: path
+          name: deliveryId
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Delivery status updated
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
