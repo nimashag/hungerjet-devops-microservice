@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   frontend-service:
-    image: my-app/frontend-service:latest
+    image: nimashig/frontend-service:latest
     container_name: frontend-service
     ports:
       - "30000:80"
@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
 
   restaurants-service:
-    image: my-app/restaurants-service:latest
+    image: nimashig/restaurants-service:latest
     container_name: restaurants-service
     ports:
       - "31001:3001"
@@ -27,7 +27,7 @@ services:
     restart: unless-stopped
 
   orders-service:
-    image: my-app/orders-service:latest
+    image: nimashig/orders-service:latest
     container_name: orders-service
     ports:
       - "31002:3002"
@@ -41,7 +41,7 @@ services:
     restart: unless-stopped
 
   users-service:
-    image: my-app/users-service:latest
+    image: nimashig/users-service:latest
     container_name: users-service
     ports:
       - "31003:3003"
@@ -55,7 +55,7 @@ services:
     restart: unless-stopped
 
   delivery-service:
-    image: my-app/delivery-service:latest
+    image: nimashig/delivery-service:latest
     container_name: delivery-service
     ports:
       - "31004:3004"
@@ -74,7 +74,7 @@ services:
     ports:
       - "31000:80"
     volumes:
-      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./docker/nginx.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
       - frontend-service
       - restaurants-service
@@ -92,4 +92,3 @@ volumes:
 networks:
   app-network:
     driver: bridge
-
