@@ -220,7 +220,7 @@ jobs:
     name: Deploy to EC2
     runs-on: ubuntu-latest
     needs: [docker-build-push, security-scan]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/for-live-deployment'
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/for-live-deployment')
 
     steps:
       - name: Deploy via SSH
