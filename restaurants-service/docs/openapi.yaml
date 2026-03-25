@@ -4,10 +4,12 @@ info:
   version: 1.0.0
   description: Restaurant and menu-item management endpoints.
 servers:
-  - url: http://localhost:3002
+  - url: http://localhost:3001
     description: Local direct service access
   - url: http://localhost:31000
     description: API gateway (Nginx)
+  - url: http://35.154.205.209:31000
+    description: AWS deployment (API gateway)
 tags:
   - name: Health
   - name: Restaurants
@@ -26,15 +28,34 @@ paths:
       summary: Create restaurant
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateRestaurantRequest'
+            encoding:
+              image:
+                contentType: image/*
       responses:
         '201':
           description: Restaurant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
     get:
       tags: [Restaurants]
       summary: List restaurants
       responses:
         '200':
           description: Restaurant list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
   /api/restaurants/my:
     get:
       tags: [Restaurants]
@@ -44,6 +65,12 @@ paths:
       responses:
         '200':
           description: Restaurant profile
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Restaurant'
   /api/restaurants/{id}:
     get:
       tags: [Restaurants]
@@ -57,6 +84,10 @@ paths:
       responses:
         '200':
           description: Restaurant found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
     put:
       tags: [Restaurants]
       summary: Update restaurant
@@ -68,9 +99,22 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateRestaurantRequest'
+            encoding:
+              image:
+                contentType: image/*
       responses:
         '200':
           description: Restaurant updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
     delete:
       tags: [Restaurants]
       summary: Delete restaurant
@@ -100,6 +144,10 @@ paths:
       responses:
         '200':
           description: Availability updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Restaurant'
   /api/restaurants/{id}/menu-items:
     post:
       tags: [Menu]
@@ -112,9 +160,22 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CreateMenuItemRequest'
+            encoding:
+              image:
+                contentType: image/*
       responses:
         '201':
           description: Menu item created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
     get:
       tags: [Menu]
       summary: List menu items by restaurant
@@ -127,6 +188,12 @@ paths:
       responses:
         '200':
           description: Menu items list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MenuItem'
   /api/restaurants/my/menu-items:
     get:
       tags: [Menu]
@@ -136,6 +203,12 @@ paths:
       responses:
         '200':
           description: Owner menu items list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MenuItem'
   /api/restaurants/{id}/menu-items/{itemId}:
     get:
       tags: [Menu]
@@ -154,6 +227,10 @@ paths:
       responses:
         '200':
           description: Menu item found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
     put:
       tags: [Menu]
       summary: Update menu item
@@ -170,9 +247,22 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateMenuItemRequest'
+            encoding:
+              image:
+                contentType: image/*
       responses:
         '200':
           description: Menu item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MenuItem'
     delete:
       tags: [Menu]
       summary: Delete menu item
@@ -198,3 +288,117 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    Restaurant:
+      type: object
+      additionalProperties: true
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        name:
+          type: string
+        available:
+          type: boolean
+        address:
+          type: string
+        location:
+          type: string
+        image:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    MenuItem:
+      type: object
+      additionalProperties: true
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        restaurantId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+        image:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    CreateRestaurantRequest:
+      type: object
+      additionalProperties: false
+      required: [name, address, location, image]
+      properties:
+        name:
+          type: string
+          example: "HungerJet Kitchen"
+        address:
+          type: string
+          example: "123 Main St, Colombo"
+        location:
+          type: string
+          example: "colombo"
+        image:
+          type: string
+          format: binary
+          description: Restaurant image upload
+    UpdateRestaurantRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        address:
+          type: string
+        location:
+          type: string
+        image:
+          type: string
+          format: binary
+    CreateMenuItemRequest:
+      type: object
+      additionalProperties: false
+      required: [name, description, price, category, image]
+      properties:
+        name:
+          type: string
+          example: "Cheese Burger"
+        description:
+          type: string
+          example: "Beef patty with cheddar"
+        price:
+          type: number
+          example: 8.5
+        category:
+          type: string
+          example: "Burgers"
+        image:
+          type: string
+          format: binary
+          description: Menu item image upload
+    UpdateMenuItemRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        price:
+          type: number
+        category:
+          type: string
+        image:
+          type: string
+          format: binary

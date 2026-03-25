@@ -8,6 +8,8 @@ servers:
     description: Local direct service access
   - url: http://localhost:31000
     description: API gateway (Nginx)
+  - url: http://35.154.205.209:31000
+    description: AWS deployment (API gateway)
 tags:
   - name: Health
   - name: Auth
@@ -23,20 +25,55 @@ paths:
     post:
       tags: [Auth]
       summary: Register a new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+            examples:
+              customer:
+                summary: Customer registration
+                value:
+                  name: John Doe
+                  email: john@example.com
+                  password: "P@ssw0rd!"
+                  role: customer
+                  phone: "+94770000000"
+                  address: "123 Main St, Colombo"
       responses:
         '201':
           description: User created
         '400':
           description: Validation error
+        '409':
+          description: User already exists
   /api/auth/login:
     post:
       tags: [Auth]
       summary: Authenticate and receive token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+            examples:
+              login:
+                value:
+                  email: john@example.com
+                  password: "P@ssw0rd!"
       responses:
         '200':
           description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
         '401':
           description: Invalid credentials
+        '404':
+          description: User not found
   /api/auth/me:
     get:
       tags: [Auth]
@@ -85,11 +122,33 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+            examples:
+              approveUser:
+                summary: Approve a user
+                value:
+                  isApproved: true
+              updateProfileFields:
+                value:
+                  name: "John Doe"
+                  phone: "+94770000000"
+                  role: customer
       responses:
         '200':
           description: User updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateUserResponse'
         '403':
           description: Forbidden
+        '404':
+          description: User not found
     delete:
       tags: [Auth]
       summary: Delete user by id (appAdmin)
@@ -112,3 +171,97 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password, role]
+      properties:
+        name:
+          type: string
+          example: John Doe
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          format: password
+          example: "P@ssw0rd!"
+        role:
+          type: string
+          enum: [customer, restaurantAdmin, deliveryPersonnel, appAdmin]
+          example: customer
+        phone:
+          type: string
+          example: "+94770000000"
+        address:
+          type: string
+          example: "123 Main St, Colombo"
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          example: john@example.com
+        password:
+          type: string
+          format: password
+          example: "P@ssw0rd!"
+    UserPublic:
+      type: object
+      additionalProperties: true
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        isApproved:
+          type: boolean
+    LoginResponse:
+      type: object
+      additionalProperties: false
+      required: [token, user]
+      properties:
+        token:
+          type: string
+          description: JWT bearer token
+        user:
+          $ref: '#/components/schemas/UserPublic'
+    UpdateUserRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [customer, restaurantAdmin, deliveryPersonnel, appAdmin]
+        phone:
+          type: string
+        address:
+          type: string
+        isApproved:
+          type: boolean
+    UpdateUserResponse:
+      type: object
+      additionalProperties: false
+      required: [message, user]
+      properties:
+        message:
+          type: string
+          example: User updated successfully
+        user:
+          type: object
+          additionalProperties: true

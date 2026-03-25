@@ -8,6 +8,8 @@ servers:
     description: Local direct service access
   - url: http://localhost:31000
     description: API gateway (Nginx)
+  - url: http://35.154.205.209:31000
+    description: AWS deployment (API gateway)
 tags:
   - name: Delivery
   - name: Drivers
@@ -18,9 +20,22 @@ paths:
       summary: Register delivery driver profile
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/RegisterDriverRequest'
+            encoding:
+              profileImage:
+                contentType: image/*
       responses:
         '201':
           description: Driver profile created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverRegisterResponse'
   /api/drivers/me:
     get:
       tags: [Drivers]
@@ -30,14 +45,31 @@ paths:
       responses:
         '200':
           description: Driver profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Driver'
     patch:
       tags: [Drivers]
       summary: Update current driver profile
       security:
         - bearerAuth: []
+      requestBody:
+        required: false
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/UpdateDriverRequest'
+            encoding:
+              profileImage:
+                contentType: image/*
       responses:
         '200':
           description: Driver updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverUpdateResponse'
   /api/delivery/health:
     get:
       tags: [Delivery]
@@ -51,18 +83,50 @@ paths:
       summary: Assign driver automatically
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignDriverRequest'
+            examples:
+              assign:
+                value:
+                  orderId: "665f10bd4f4b6f1c0b0a2001"
+                  customerId: "665f10bd4f4b6f1c0b0a3001"
+                  restaurantId: "665f10bd4f4b6f1c0b0a0001"
       responses:
         '200':
           description: Driver assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignDriverResponse'
   /api/delivery/respond:
     post:
       tags: [Delivery]
       summary: Driver responds to assignment
       security:
         - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RespondAssignmentRequest'
+            examples:
+              accept:
+                value:
+                  orderId: "665f10bd4f4b6f1c0b0a2001"
+                  action: accept
       responses:
         '200':
           description: Assignment response recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
   /api/delivery/assigned-orders:
     get:
       tags: [Delivery]
@@ -72,6 +136,12 @@ paths:
       responses:
         '200':
           description: Assigned orders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryEnhanced'
   /api/delivery/available-orders:
     get:
       tags: [Delivery]
@@ -81,6 +151,12 @@ paths:
       responses:
         '200':
           description: Available orders list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryEnhanced'
   /api/delivery/my-deliveries:
     get:
       tags: [Delivery]
@@ -90,6 +166,12 @@ paths:
       responses:
         '200':
           description: Deliveries list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DeliveryEnhanced'
   /api/delivery/delivery/{deliveryId}/status:
     patch:
       tags: [Delivery]
@@ -102,12 +184,229 @@ paths:
           required: true
           schema:
             type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDeliveryStatusRequest'
+            examples:
+              pickedUp:
+                value:
+                  status: PickedUp
       responses:
         '200':
           description: Delivery status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UpdateDeliveryStatusResponse'
 components:
   securitySchemes:
     bearerAuth:
       type: http
       scheme: bearer
       bearerFormat: JWT
+  schemas:
+    Driver:
+      type: object
+      additionalProperties: true
+      properties:
+        _id:
+          type: string
+        userId:
+          type: string
+        pickupLocation:
+          type: string
+        deliveryLocations:
+          type: array
+          items:
+            type: string
+        vehicleRegNumber:
+          type: string
+        mobileNumber:
+          type: string
+        isAvailable:
+          type: boolean
+        profileImage:
+          type: string
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    RegisterDriverRequest:
+      type: object
+      additionalProperties: false
+      required: [vehicleRegNumber, mobileNumber]
+      properties:
+        pickupLocation:
+          type: string
+          example: "colombo"
+        deliveryLocations:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
+          description: Accepts an array or a comma-separated string.
+          example: ["colombo", "kandy"]
+        vehicleRegNumber:
+          type: string
+          example: "WP-ABC-1234"
+        mobileNumber:
+          type: string
+          example: "+94770000000"
+        profileImage:
+          type: string
+          format: binary
+    UpdateDriverRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        pickupLocation:
+          type: string
+        deliveryLocations:
+          oneOf:
+            - type: array
+              items:
+                type: string
+            - type: string
+        vehicleRegNumber:
+          type: string
+        mobileNumber:
+          type: string
+        isAvailable:
+          type: boolean
+        profileImage:
+          type: string
+          format: binary
+    DriverRegisterResponse:
+      type: object
+      additionalProperties: false
+      required: [message, driver]
+      properties:
+        message:
+          type: string
+          example: Driver registered successfully
+        driver:
+          $ref: '#/components/schemas/Driver'
+    DriverUpdateResponse:
+      type: object
+      additionalProperties: false
+      required: [message, driver]
+      properties:
+        message:
+          type: string
+          example: Driver updated successfully
+        driver:
+          $ref: '#/components/schemas/Driver'
+    AssignDriverRequest:
+      type: object
+      additionalProperties: false
+      required: [orderId, customerId, restaurantId]
+      properties:
+        orderId:
+          type: string
+        customerId:
+          type: string
+        restaurantId:
+          type: string
+    AssignDriverResponse:
+      type: object
+      additionalProperties: false
+      required: [message, delivery]
+      properties:
+        message:
+          type: string
+          example: Driver assigned
+        delivery:
+          $ref: '#/components/schemas/Delivery'
+    RespondAssignmentRequest:
+      type: object
+      additionalProperties: false
+      required: [orderId, action]
+      properties:
+        orderId:
+          type: string
+        action:
+          type: string
+          enum: [accept, decline]
+    Delivery:
+      type: object
+      additionalProperties: true
+      properties:
+        _id:
+          type: string
+        orderId:
+          type: string
+        driverId:
+          type: string
+          nullable: true
+        customerId:
+          type: string
+        restaurantLocation:
+          type: string
+        deliveryLocation:
+          type: string
+        acceptStatus:
+          type: string
+          enum: [Pending, Accepted, Declined]
+        status:
+          type: string
+          enum: [Pending, Assigned, PickedUp, Delivered, Cancelled]
+        createdAt:
+          type: string
+        updatedAt:
+          type: string
+    DeliveryEnhanced:
+      type: object
+      additionalProperties: true
+      properties:
+        _id:
+          type: string
+        orderId:
+          type: string
+        driverId:
+          type: string
+          nullable: true
+        customerId:
+          type: string
+          nullable: true
+        restaurantId:
+          type: string
+          nullable: true
+        restaurantLocation:
+          type: string
+        deliveryLocation:
+          type: string
+        acceptStatus:
+          type: string
+        status:
+          type: string
+        deliveryAddress:
+          type: object
+          nullable: true
+          additionalProperties: true
+        paymentStatus:
+          type: string
+          nullable: true
+        specialInstructions:
+          type: string
+    UpdateDeliveryStatusRequest:
+      type: object
+      additionalProperties: false
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [PickedUp, Delivered, Cancelled]
+    UpdateDeliveryStatusResponse:
+      type: object
+      additionalProperties: false
+      required: [message, updatedDelivery]
+      properties:
+        message:
+          type: string
+          example: Delivery status updated successfully
+        updatedDelivery:
+          $ref: '#/components/schemas/Delivery'
