@@ -50,7 +50,7 @@ const Footer: React.FC = () => {
 
       {/* Divider */}
       <div className="mt-8 mb-4 border-t border-gray-200 pt-5 text-center font-semibold text-sm text-gray-600">
-        © 2025 HungerJet - All Rights Reserved yomith.
+        © 2025 HungerJet - All Rights Reserved.
       </div>
     </footer>
   );
