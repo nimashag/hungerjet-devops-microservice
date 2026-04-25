@@ -29,7 +29,7 @@ const Footer: React.FC = () => {
 
         {/* Contact Info */}
         <div>
-          <p className="text-xl font-medium mb-5">Get In Touch</p>
+          <p className="text-xl font-medium mb-5">Get In Touch Test</p>
           <ul className="flex flex-col gap-2 text-gray-600">
             <li className="flex items-center space-x-2">
               <FaPhone className="text-orange-600" />
