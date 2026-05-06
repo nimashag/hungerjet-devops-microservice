@@ -246,7 +246,7 @@ const DriverProfile = () => {
             {profile.pickupLocation || "Not set"}
           </p>
           <p className="text-xs text-gray-400 mt-1">
-            📍 Orders will only show if their pickup location matches this
+             Orders will only show if their pickup location matches this
           </p>
         </div>
 
@@ -311,7 +311,7 @@ const DriverProfile = () => {
         {/* Info Box */}
         <div className="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg">
           <p className="text-sm text-blue-800">
-            <strong>💡 Tip:</strong> Update your pickup location to areas where
+            <strong> Tip:</strong> Update your pickup location to areas where
             restaurants are located. Only orders from restaurants at your pickup
             location will appear in "Available Orders".
           </p>
