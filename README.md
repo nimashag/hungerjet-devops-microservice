@@ -1,8 +1,6 @@
 # hungerjet-devops-microservice
 
-Microservices demo project using Node.js, Docker Compose, and Nginx.
-
-![CI/CD Pipeline](https://github.com/nimashag/hungerjet-devops-microservice/actions/workflows/ci-cd.yml/badge.svg)
+Hungerjet is a microservices-based food ordering and delivery platform supporting restaurant registration, menu and order management, user browsing and ordering, and location-based delivery. Delivery drivers manage profiles, select areas, and fulfill matching orders efficiently.
 
 ## Quick Links
 
