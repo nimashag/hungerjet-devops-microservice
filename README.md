@@ -1,4 +1,4 @@
-# hungerjet-devops-microservice
+# Hungerjet Food Ordering & Delivering System
 
 Hungerjet is a microservices-based food ordering and delivery platform supporting restaurant registration, menu and order management, user browsing and ordering, and location-based delivery. Delivery drivers manage profiles, select areas, and fulfill matching orders efficiently.
 
