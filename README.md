@@ -14,7 +14,31 @@ Microservices demo project using Node.js, Docker Compose, and Nginx.
 - [Restaurants API Contract](restaurants-service/docs/openapi.yaml)
 - [Delivery API Contract](delivery-service/docs/openapi.yaml)
 ---
+## System Architecture Diagram 
 
+<img width="1379" height="920" alt="Image" src="https://github.com/user-attachments/assets/c0e4572a-5bd9-4b1e-a8ad-78d29c7c5f59" />
+
+---
+## Demo
+<img width="5140" height="2760" alt="Image" src="https://github.com/user-attachments/assets/32f0a7af-b50f-470a-b0be-633b1b1a2cc9" />
+
+<img width="1920" height="1321" alt="Image" src="https://github.com/user-attachments/assets/a159aee0-cd32-4fcf-8eb4-6ca4f081d6ca" />
+
+<img width="1920" height="1376" alt="Image" src="https://github.com/user-attachments/assets/bb2e2686-e609-4e54-9d2d-4e3f85ede126" />
+
+<img width="1903" height="865" alt="Image" src="https://github.com/user-attachments/assets/b0c25f3b-9d5e-47a8-9144-0df2f976cd88" />
+
+<img width="1920" height="868" alt="Image" src="https://github.com/user-attachments/assets/35004754-80b8-4eb1-93b4-b33ff9efb7c3" />
+
+<img width="1920" height="868" alt="Image" src="https://github.com/user-attachments/assets/898d7a5b-f08c-415c-8cdd-698429ea5e3c" />
+
+<img width="1920" height="1135" alt="Image" src="https://github.com/user-attachments/assets/fe250956-a296-4ea4-b4b5-e0e0690ead2a" />
+
+<img width="1920" height="1972" alt="Image" src="https://github.com/user-attachments/assets/e24a9e9f-f1fd-49e7-8028-2b4daed1878c" />
+
+<img width="1920" height="1175" alt="Image" src="https://github.com/user-attachments/assets/ceae6b8b-0fb7-4951-82ad-7059e465e16b" />
+
+---
 ## Prerequisites
 
 - Docker Desktop installed: https://docs.docker.com/desktop/
